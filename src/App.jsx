@@ -19,6 +19,9 @@ import {
 	Plus,
 	ShieldCheck,
 	ExternalLink,
+	Sparkles,
+	Loader2,
+	KeyRound,
 } from 'lucide-react';
 
 /* ---------------------------------------------------------
@@ -226,6 +229,8 @@ const ADMIN_USERNAME = 'xurboyeva.01@gmail.com';
 const ADMIN_PASSWORD = 'xurboyeva_.010';
 
 const EMAIL_STORAGE_KEY = 'kinobot_email';
+const AI_KEY_STORAGE_KEY = 'kinobot_ai_key';
+const AI_MODEL = 'claude-sonnet-5';
 
 const EMPTY_FORM = {
 	title: '',
@@ -277,6 +282,132 @@ function getYouTubeId(url) {
 function getYouTubeThumbnail(youtubeId) {
 	if (!youtubeId) return null;
 	return `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
+}
+
+/* ---------------------------------------------------------
+   AI: film tavsifini avtomatik yozib berish
+
+   Bu funksiya to'g'ridan-to'g'ri brauzerdan Claude API'ga (Anthropic)
+   so'rov yuboradi. Bu uchun adminning o'z Anthropic API kaliti kerak
+   (https://console.anthropic.com dan olinadi) — kalit faqat shu
+   qurilmaning localStorage'ida saqlanadi, hech qayerga yuborilmaydi.
+
+   DIQQAT: bu — soddalashtirilgan demo yondashuv. Haqiqiy production
+   loyihada API kalitini brauzerda saqlash xavfsiz emas — bunday
+   so'rovlar odatda o'z backendingiz orqali yuborilishi kerak.
+--------------------------------------------------------- */
+async function generateBlurbWithAI({ title, genre, year, apiKey }) {
+	const prompt = `Sen professional o'zbek tilida kino-tavsif yozuvchisisan. Quyidagi film uchun bitta, tabiiy, jozibali va 1-2 gapdan iborat qisqacha tavsif (blurb) yoz.
+
+Film nomi: ${title}
+Janr: ${genre}
+Yili: ${year || "noma'lum"}
+
+Qoidalar:
+- Faqat o'zbek tilida yoz.
+- Faqat tavsif matnini qaytar, boshqa hech narsa yozma (izoh, sarlavha, tirnoq belgisi shart emas).
+- Filmning syujetini his-tuyg'u bilan, lekin oshirib yubormasdan tasvirla.
+- Taxminan 15-30 so'zdan iborat bo'lsin.`;
+
+	const response = await fetch('https://api.anthropic.com/v1/messages', {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			'x-api-key': apiKey,
+			'anthropic-version': '2023-06-01',
+			'anthropic-dangerous-direct-browser-access': 'true',
+		},
+		body: JSON.stringify({
+			model: AI_MODEL,
+			max_tokens: 200,
+			messages: [{ role: 'user', content: prompt }],
+		}),
+	});
+
+	if (!response.ok) {
+		if (response.status === 401) {
+			throw new Error("API kalit noto'g'ri yoki eskirgan");
+		}
+		throw new Error(`So'rov muvaffaqiyatsiz tugadi (${response.status})`);
+	}
+
+	const data = await response.json();
+	const textBlock = data.content?.find(block => block.type === 'text');
+	const text = textBlock?.text?.trim();
+	if (!text) throw new Error('AI javob qaytarmadi');
+	return text;
+}
+
+/* ---------------------------------------------------------
+   AI: qidiruvda topilmagan filmni to'liq ma'lumot bilan yaratish
+
+   Foydalanuvchi qidiruv qatoriga film nomini yozadi, lekin ro'yxatda
+   topilmasa, AI o'sha nomga qarab janr, yil, davomiylik, reyting va
+   qisqacha tavsifni o'zi taxmin qilib, JSON ko'rinishida qaytaradi.
+   Bu ma'lumotlar tekshirilib (validatsiya), keyin filmlar ro'yxatiga
+   qo'shiladi.
+--------------------------------------------------------- */
+async function generateMovieWithAI({ title, apiKey }) {
+	const genreList = ADMIN_GENRES.join(', ');
+	const prompt = `Sen kinolar bo'yicha bilimdon yordamchisan. Foydalanuvchi "${title}" nomli filmni qidirmoqda, lekin katalogda topilmadi. Shu film haqida ma'lumot ber (agar bu haqiqiy, tanish film bo'lsa — haqiqiy ma'lumotlarni ishlat; agar tanimasang yoki noaniq bo'lsa — mantiqiy, ishonchli taxmin qil).
+
+Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki markdown belgisi qo'shma:
+
+{
+  "genre": "<faqat shu ro'yxatdan bittasi: ${genreList}>",
+  "year": <son, chiqarilgan yili>,
+  "duration": <son, daqiqada davomiyligi>,
+  "rating": <son, 0 dan 10 gacha, bitta kasr xonasi bilan>,
+  "blurb": "<o'zbek tilida, 15-30 so'zdan iborat qisqacha tavsif>"
+}`;
+
+	const response = await fetch('https://api.anthropic.com/v1/messages', {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			'x-api-key': apiKey,
+			'anthropic-version': '2023-06-01',
+			'anthropic-dangerous-direct-browser-access': 'true',
+		},
+		body: JSON.stringify({
+			model: AI_MODEL,
+			max_tokens: 300,
+			messages: [{ role: 'user', content: prompt }],
+		}),
+	});
+
+	if (!response.ok) {
+		if (response.status === 401) {
+			throw new Error("API kalit noto'g'ri yoki eskirgan");
+		}
+		throw new Error(`So'rov muvaffaqiyatsiz tugadi (${response.status})`);
+	}
+
+	const data = await response.json();
+	const textBlock = data.content?.find(block => block.type === 'text');
+	const raw = textBlock?.text?.trim();
+	if (!raw) throw new Error('AI javob qaytarmadi');
+
+	// AI ba'zan JSON'ni ```json ... ``` bilan o'rab yuborishi mumkin — tozalaymiz
+	const cleaned = raw
+		.replace(/^```(json)?/i, '')
+		.replace(/```$/, '')
+		.trim();
+
+	let parsed;
+	try {
+		parsed = JSON.parse(cleaned);
+	} catch {
+		throw new Error("AI javobini o'qib bo'lmadi, qayta urinib ko'ring");
+	}
+
+	const genre = ADMIN_GENRES.includes(parsed.genre) ? parsed.genre : ADMIN_GENRES[0];
+	const year = Number(parsed.year) || new Date().getFullYear();
+	const duration = Number(parsed.duration) > 0 ? Number(parsed.duration) : 100;
+	const rating = Math.min(10, Math.max(0, Number(parsed.rating) || 7));
+	const blurb = typeof parsed.blurb === 'string' && parsed.blurb.trim() ? parsed.blurb.trim() : "Tavsif tez orada to'ldiriladi.";
+
+	return { title, genre, year, duration, rating, blurb };
 }
 
 function Sprockets({ count = 14 }) {
@@ -675,6 +806,68 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 	const [form, setForm] = useState(EMPTY_FORM);
 	const [formError, setFormError] = useState('');
 
+	const [apiKey, setApiKey] = useState(() => {
+		try {
+			return localStorage.getItem(AI_KEY_STORAGE_KEY) || '';
+		} catch {
+			return '';
+		}
+	});
+	const [apiKeyDraft, setApiKeyDraft] = useState('');
+	const [showKeyField, setShowKeyField] = useState(false);
+	const [aiLoading, setAiLoading] = useState(false);
+	const [aiError, setAiError] = useState('');
+
+	function saveApiKey() {
+		const trimmed = apiKeyDraft.trim();
+		if (!trimmed) return;
+		try {
+			localStorage.setItem(AI_KEY_STORAGE_KEY, trimmed);
+		} catch {
+			/* ignore */
+		}
+		setApiKey(trimmed);
+		setApiKeyDraft('');
+		setShowKeyField(false);
+		setAiError('');
+	}
+
+	function clearApiKey() {
+		try {
+			localStorage.removeItem(AI_KEY_STORAGE_KEY);
+		} catch {
+			/* ignore */
+		}
+		setApiKey('');
+	}
+
+	async function handleGenerateBlurb() {
+		if (!form.title.trim()) {
+			setAiError('Avval film nomini kiriting');
+			return;
+		}
+		if (!apiKey) {
+			setShowKeyField(true);
+			setAiError('Avval Anthropic API kalitingizni kiriting');
+			return;
+		}
+		setAiError('');
+		setAiLoading(true);
+		try {
+			const blurb = await generateBlurbWithAI({
+				title: form.title.trim(),
+				genre: form.genre,
+				year: form.year,
+				apiKey,
+			});
+			updateField('blurb', blurb);
+		} catch (err) {
+			setAiError(err.message || "AI tavsif yaratib bo'lmadi");
+		} finally {
+			setAiLoading(false);
+		}
+	}
+
 	function updateField(key, val) {
 		setForm(f => ({ ...f, [key]: val }));
 	}
@@ -728,6 +921,42 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 
 			<div className='kb-admin-form'>
 				<h3 className='kb-admin-form-title'>Yangi film qo'shish</h3>
+
+				<div className='kb-ai-settings'>
+					{apiKey && !showKeyField ? (
+						<div className='kb-ai-key-status'>
+							<KeyRound size={14} />
+							Anthropic API kaliti ulangan
+							<button type='button' className='kb-ai-key-change' onClick={() => setShowKeyField(true)}>
+								o'zgartirish
+							</button>
+							<button type='button' className='kb-ai-key-change' onClick={clearApiKey}>
+								o'chirish
+							</button>
+						</div>
+					) : (
+						<div className='kb-ai-key-form'>
+							<KeyRound size={14} />
+							<input
+								type='password'
+								className='kb-input kb-ai-key-input'
+								placeholder='Anthropic API kalitingiz (sk-ant-...)'
+								value={apiKeyDraft}
+								onChange={e => setApiKeyDraft(e.target.value)}
+								onKeyDown={e => {
+									if (e.key === 'Enter') saveApiKey();
+								}}
+							/>
+							<button type='button' className='kb-btn-secondary kb-ai-key-save' onClick={saveApiKey}>
+								Saqlash
+							</button>
+						</div>
+					)}
+					<p className='kb-ai-key-hint'>
+						AI tavsif yozish uchun kerak. Kalit faqat shu brauzerda saqlanadi, hech qayerga yuborilmaydi.
+					</p>
+				</div>
+
 				<div className='kb-admin-form-grid'>
 					<div className='kb-admin-field'>
 						<label className='kb-label'>Sarlavha</label>
@@ -785,13 +1014,20 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 					</div>
 				</div>
 				<div className='kb-admin-field'>
-					<label className='kb-label'>Qisqacha tavsif</label>
+					<div className='kb-admin-field-head'>
+						<label className='kb-label'>Qisqacha tavsif</label>
+						<button type='button' className='kb-ai-generate-btn' onClick={handleGenerateBlurb} disabled={aiLoading}>
+							{aiLoading ? <Loader2 size={14} className='kb-spin' /> : <Sparkles size={14} />}
+							{aiLoading ? 'Yozilmoqda...' : 'AI bilan yozish'}
+						</button>
+					</div>
 					<textarea
 						className='kb-input kb-admin-input kb-admin-textarea'
-						placeholder='Film haqida bir-ikki gap'
+						placeholder='Film haqida bir-ikki gap — yoki yuqoridagi AI tugmasini bosing'
 						value={form.blurb}
 						onChange={e => updateField('blurb', e.target.value)}
 					/>
+					{aiError && <p className='kb-error-text'>{aiError}</p>}
 				</div>
 				<div className='kb-admin-field'>
 					<label className='kb-label'>Plakat rasm havolasi (ixtiyoriy)</label>
@@ -897,6 +1133,19 @@ export default function KinoBot() {
 	const [showAdminLogin, setShowAdminLogin] = useState(false);
 	const [isAdmin, setIsAdmin] = useState(false);
 
+	// AI orqali qidiruvda topilmagan filmni qo'shish uchun holat.
+	// Admin panelda saqlangan API kalit shu yerda ham qayta ishlatiladi.
+	const [apiKey, setApiKey] = useState(() => {
+		try {
+			return localStorage.getItem(AI_KEY_STORAGE_KEY) || '';
+		} catch {
+			return '';
+		}
+	});
+	const [apiKeyDraft, setApiKeyDraft] = useState('');
+	const [aiSearchLoading, setAiSearchLoading] = useState(false);
+	const [aiSearchError, setAiSearchError] = useState('');
+
 	useEffect(() => {
 		if (!toast) return;
 		const t = setTimeout(() => setToast(''), 2200);
@@ -937,6 +1186,40 @@ export default function KinoBot() {
 			return [...prev, { id: nextId, ...newMovie }];
 		});
 		setToast(`"${newMovie.title}" qo'shildi`);
+	}
+
+	function saveSearchApiKey() {
+		const trimmed = apiKeyDraft.trim();
+		if (!trimmed) return;
+		try {
+			localStorage.setItem(AI_KEY_STORAGE_KEY, trimmed);
+		} catch {
+			/* ignore */
+		}
+		setApiKey(trimmed);
+		setApiKeyDraft('');
+		setAiSearchError('');
+	}
+
+	async function handleAiSearchAdd() {
+		const title = query.trim();
+		if (!title) return;
+		if (!apiKey) {
+			setAiSearchError('Avval Anthropic API kalitingizni kiriting');
+			return;
+		}
+		setAiSearchError('');
+		setAiSearchLoading(true);
+		try {
+			const movie = await generateMovieWithAI({ title, apiKey });
+			addMovie(movie);
+			setActiveGenre('Barchasi');
+			setShowFavOnly(false);
+		} catch (err) {
+			setAiSearchError(err.message || "Film yaratib bo'lmadi");
+		} finally {
+			setAiSearchLoading(false);
+		}
 	}
 
 	function deleteMovie(id) {
@@ -1055,6 +1338,43 @@ export default function KinoBot() {
 								<Clapperboard size={40} strokeWidth={1.3} />
 								<p className='kb-display kb-empty-title'>Zal bo'sh qoldi</p>
 								<p className='kb-empty-sub'>Qidiruv yoki janrni o'zgartirib ko'ring.</p>
+
+								{query.trim() && (
+									<div className='kb-ai-search-add'>
+										<p className='kb-ai-search-lead'>
+											<Sparkles size={14} />"{query.trim()}" nomli film topilmadi — AI yordamida qo'shib ko'ramizmi?
+										</p>
+
+										{apiKey ? (
+											<button
+												type='button'
+												className='kb-btn-primary kb-ai-search-btn'
+												onClick={handleAiSearchAdd}
+												disabled={aiSearchLoading}>
+												{aiSearchLoading ? <Loader2 size={16} className='kb-spin' /> : <Sparkles size={16} />}
+												{aiSearchLoading ? 'Yaratilmoqda...' : "AI bilan qo'shish"}
+											</button>
+										) : (
+											<div className='kb-ai-key-form kb-ai-search-key-form'>
+												<KeyRound size={14} />
+												<input
+													type='password'
+													className='kb-input kb-ai-key-input'
+													placeholder='Anthropic API kalitingiz (sk-ant-...)'
+													value={apiKeyDraft}
+													onChange={e => setApiKeyDraft(e.target.value)}
+													onKeyDown={e => {
+														if (e.key === 'Enter') saveSearchApiKey();
+													}}
+												/>
+												<button type='button' className='kb-btn-secondary kb-ai-key-save' onClick={saveSearchApiKey}>
+													Saqlash
+												</button>
+											</div>
+										)}
+										{aiSearchError && <p className='kb-error-text'>{aiSearchError}</p>}
+									</div>
+								)}
 							</div>
 						) : (
 							filtered.map((m, i) => (
