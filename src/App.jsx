@@ -184,6 +184,17 @@ const MOVIES = [
 		blurb: "Tavsif tez orada to'ldiriladi.",
 		youtubeUrl: 'https://youtu.be/oatcw4p6Wuw',
 	},
+
+	{
+		id: 14,
+		title: 'Sahro Jangchisi',
+		year: 2025,
+		genre: 'Tarixiy',
+		duration: 127,
+		rating: 7.4,
+		blurb: "Tavsif tez orada to'ldiriladi.",
+		youtubeUrl: 'https://youtu.be/GHgJleDjV68?si=0Gsal05r3tfwIDsN',
+	},
 ];
 
 const GENRES = ['Barchasi', 'Fantastika', 'Jinoiy', 'Drama', 'Animatsiya', 'Triller', 'Tarixiy'];
