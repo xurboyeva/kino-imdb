@@ -392,7 +392,10 @@ Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki m
 	if (!raw) throw new Error('AI javob qaytarmadi');
 
 	// AI ba'zan JSON'ni ```json ... ``` bilan o'rab yuborishi mumkin — tozalaymiz
-	const cleaned = raw.replace(/^```(json)?/i, '').replace(/```$/, '').trim();
+	const cleaned = raw
+		.replace(/^```(json)?/i, '')
+		.replace(/```$/, '')
+		.trim();
 
 	let parsed;
 	try {
@@ -405,7 +408,7 @@ Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki m
 	const year = Number(parsed.year) || new Date().getFullYear();
 	const duration = Number(parsed.duration) > 0 ? Number(parsed.duration) : 100;
 	const rating = Math.min(10, Math.max(0, Number(parsed.rating) || 7));
-	const blurb = typeof parsed.blurb === 'string' && parsed.blurb.trim() ? parsed.blurb.trim() : 'Tavsif tez orada to\'ldiriladi.';
+	const blurb = typeof parsed.blurb === 'string' && parsed.blurb.trim() ? parsed.blurb.trim() : "Tavsif tez orada to'ldiriladi.";
 
 	return { title, genre, year, duration, rating, blurb };
 }
@@ -418,9 +421,7 @@ Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki m
    aniq javob bera oladi va real tavsiyalar beradi.
 --------------------------------------------------------- */
 async function sendChatMessage({ history, movies, apiKey }) {
-	const catalogText = movies
-		.map(m => `- ${m.title} (${m.genre}, ${m.year}, reyting ${m.rating})`)
-		.join('\n');
+	const catalogText = movies.map(m => `- ${m.title} (${m.genre}, ${m.year}, reyting ${m.rating})`).join('\n');
 
 	const systemPrompt = `Sen "KinoBot" nomli onlayn kinoteatr saytining sun'iy intellekt yordamchisisan. Foydalanuvchilarga filmlar haqida savollarga javob berasan va janr/kayfiyatga qarab tavsiyalar berasan.
 
@@ -546,10 +547,7 @@ function ChatWidget({ movies, apiKey, onSaveApiKey, onOpenMovie }) {
 						{messages.length === 0 && (
 							<div className='kb-chat-intro'>
 								<Sparkles size={18} />
-								<p>
-									Salom! Menga kayfiyatingiz yoki qiziqqan janringizni ayting — mos filmni katalogdan
-									topib beraman.
-								</p>
+								<p>Salom! Menga kayfiyatingiz yoki qiziqqan janringizni ayting — mos filmni katalogdan topib beraman.</p>
 							</div>
 						)}
 						{messages.map((m, i) => (
@@ -1059,7 +1057,7 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 
 	async function handleGenerateBlurb() {
 		if (!form.title.trim()) {
-			setAiError("Avval film nomini kiriting");
+			setAiError('Avval film nomini kiriting');
 			return;
 		}
 		if (!apiKey) {
@@ -1232,11 +1230,7 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 				<div className='kb-admin-field'>
 					<div className='kb-admin-field-head'>
 						<label className='kb-label'>Qisqacha tavsif</label>
-						<button
-							type='button'
-							className='kb-ai-generate-btn'
-							onClick={handleGenerateBlurb}
-							disabled={aiLoading}>
+						<button type='button' className='kb-ai-generate-btn' onClick={handleGenerateBlurb} disabled={aiLoading}>
 							{aiLoading ? <Loader2 size={14} className='kb-spin' /> : <Sparkles size={14} />}
 							{aiLoading ? 'Yozilmoqda...' : 'AI bilan yozish'}
 						</button>
@@ -1567,8 +1561,7 @@ export default function KinoBot() {
 								{query.trim() && (
 									<div className='kb-ai-search-add'>
 										<p className='kb-ai-search-lead'>
-											<Sparkles size={14} />
-											"{query.trim()}" nomli film topilmadi — AI yordamida qo'shib ko'ramizmi?
+											<Sparkles size={14} />"{query.trim()}" nomli film topilmadi — AI yordamida qo'shib ko'ramizmi?
 										</p>
 
 										{apiKey ? (
@@ -1578,7 +1571,7 @@ export default function KinoBot() {
 												onClick={handleAiSearchAdd}
 												disabled={aiSearchLoading}>
 												{aiSearchLoading ? <Loader2 size={16} className='kb-spin' /> : <Sparkles size={16} />}
-												{aiSearchLoading ? 'Yaratilmoqda...' : 'AI bilan qo\'shish'}
+												{aiSearchLoading ? 'Yaratilmoqda...' : "AI bilan qo'shish"}
 											</button>
 										) : (
 											<div className='kb-ai-key-form kb-ai-search-key-form'>
@@ -1648,9 +1641,7 @@ export default function KinoBot() {
 				</div>
 			)}
 
-			{!isAdmin && (
-				<ChatWidget movies={movies} apiKey={apiKey} onSaveApiKey={persistApiKey} onOpenMovie={setSelected} />
-			)}
+			{!isAdmin && <ChatWidget movies={movies} apiKey={apiKey} onSaveApiKey={persistApiKey} onOpenMovie={setSelected} />}
 		</div>
 	);
 }
