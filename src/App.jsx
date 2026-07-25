@@ -22,6 +22,9 @@ import {
 	Sparkles,
 	Loader2,
 	KeyRound,
+	MessageCircle,
+	Send,
+	Bot,
 } from 'lucide-react';
 
 /* ---------------------------------------------------------
@@ -389,10 +392,7 @@ Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki m
 	if (!raw) throw new Error('AI javob qaytarmadi');
 
 	// AI ba'zan JSON'ni ```json ... ``` bilan o'rab yuborishi mumkin — tozalaymiz
-	const cleaned = raw
-		.replace(/^```(json)?/i, '')
-		.replace(/```$/, '')
-		.trim();
+	const cleaned = raw.replace(/^```(json)?/i, '').replace(/```$/, '').trim();
 
 	let parsed;
 	try {
@@ -405,9 +405,225 @@ Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki m
 	const year = Number(parsed.year) || new Date().getFullYear();
 	const duration = Number(parsed.duration) > 0 ? Number(parsed.duration) : 100;
 	const rating = Math.min(10, Math.max(0, Number(parsed.rating) || 7));
-	const blurb = typeof parsed.blurb === 'string' && parsed.blurb.trim() ? parsed.blurb.trim() : "Tavsif tez orada to'ldiriladi.";
+	const blurb = typeof parsed.blurb === 'string' && parsed.blurb.trim() ? parsed.blurb.trim() : 'Tavsif tez orada to\'ldiriladi.';
 
 	return { title, genre, year, duration, rating, blurb };
+}
+
+/* ---------------------------------------------------------
+   AI: chatbot — filmlar haqida savol-javob va tavsiya
+
+   Chatbot joriy katalogdagi filmlar ro'yxatini (nom, janr, yil, reyting)
+   kontekst sifatida oladi, shuning uchun faqat mavjud filmlar haqida
+   aniq javob bera oladi va real tavsiyalar beradi.
+--------------------------------------------------------- */
+async function sendChatMessage({ history, movies, apiKey }) {
+	const catalogText = movies
+		.map(m => `- ${m.title} (${m.genre}, ${m.year}, reyting ${m.rating})`)
+		.join('\n');
+
+	const systemPrompt = `Sen "KinoBot" nomli onlayn kinoteatr saytining sun'iy intellekt yordamchisisan. Foydalanuvchilarga filmlar haqida savollarga javob berasan va janr/kayfiyatga qarab tavsiyalar berasan.
+
+Qat'iy qoidalar:
+- Faqat o'zbek tilida javob ber.
+- Javoblaring qisqa va tabiiy bo'lsin (odatda 1-4 gap), keraksiz uzun matn yozma.
+- Tavsiya berayotganda FAQAT quyidagi katalogdagi filmlardan tanla — bu ro'yxatdan tashqari film tavsiya qilma, chunki saytda ular yo'q:
+
+${catalogText}
+
+- Agar so'ralgan narsa katalogda yo'q bo'lsa, buni ochiq ayt va eng yaqin mos keladigan variantni taklif qil.
+- Sen sotib olish, chipta band qilish kabi amallarni bajara olmaysan — faqat maslahat va ma'lumot berasan.`;
+
+	const response = await fetch('https://api.anthropic.com/v1/messages', {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			'x-api-key': apiKey,
+			'anthropic-version': '2023-06-01',
+			'anthropic-dangerous-direct-browser-access': 'true',
+		},
+		body: JSON.stringify({
+			model: AI_MODEL,
+			max_tokens: 400,
+			system: systemPrompt,
+			messages: history.map(m => ({ role: m.role, content: m.content })),
+		}),
+	});
+
+	if (!response.ok) {
+		if (response.status === 401) {
+			throw new Error("API kalit noto'g'ri yoki eskirgan");
+		}
+		throw new Error(`So'rov muvaffaqiyatsiz tugadi (${response.status})`);
+	}
+
+	const data = await response.json();
+	const textBlock = data.content?.find(block => block.type === 'text');
+	const text = textBlock?.text?.trim();
+	if (!text) throw new Error('AI javob qaytarmadi');
+	return text;
+}
+
+/* ---------------------------------------------------------
+   Chatbot widget — pastki burchakdagi suzuvchi chat oynasi
+--------------------------------------------------------- */
+
+function ChatWidget({ movies, apiKey, onSaveApiKey, onOpenMovie }) {
+	const [open, setOpen] = useState(false);
+	const [messages, setMessages] = useState([]);
+	const [input, setInput] = useState('');
+	const [keyDraft, setKeyDraft] = useState('');
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState('');
+	const scrollRef = useRef(null);
+
+	useEffect(() => {
+		if (scrollRef.current) {
+			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+		}
+	}, [messages, loading, open]);
+
+	function matchedMovies(text) {
+		const lower = text.toLowerCase();
+		return movies.filter(m => lower.includes(m.title.toLowerCase())).slice(0, 3);
+	}
+
+	async function handleSend() {
+		const text = input.trim();
+		if (!text || loading) return;
+		if (!apiKey) {
+			setError('Avval Anthropic API kalitingizni kiriting');
+			return;
+		}
+		setError('');
+		const nextHistory = [...messages, { role: 'user', content: text }];
+		setMessages(nextHistory);
+		setInput('');
+		setLoading(true);
+		try {
+			const reply = await sendChatMessage({ history: nextHistory, movies, apiKey });
+			setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+		} catch (err) {
+			setError(err.message || "Javob olib bo'lmadi");
+			setMessages(prev => prev.slice(0, -1));
+			setInput(text);
+		} finally {
+			setLoading(false);
+		}
+	}
+
+	function handleSaveKey() {
+		const trimmed = keyDraft.trim();
+		if (!trimmed) return;
+		onSaveApiKey(trimmed);
+		setKeyDraft('');
+		setError('');
+	}
+
+	return (
+		<>
+			<button
+				type='button'
+				className={`kb-chat-fab ${open ? 'kb-chat-fab--open' : ''}`}
+				onClick={() => setOpen(v => !v)}
+				aria-label={open ? 'Chatni yopish' : 'AI yordamchi bilan suhbat'}>
+				{open ? <X size={22} /> : <MessageCircle size={22} />}
+			</button>
+
+			{open && (
+				<div className='kb-chat-panel' role='dialog' aria-label='AI yordamchi'>
+					<div className='kb-chat-head'>
+						<span className='kb-chat-head-icon'>
+							<Bot size={16} />
+						</span>
+						<div>
+							<p className='kb-chat-head-title'>KinoBot AI</p>
+							<p className='kb-chat-head-sub'>Film tanlashda yordam beraman</p>
+						</div>
+					</div>
+
+					<div className='kb-chat-body' ref={scrollRef}>
+						{messages.length === 0 && (
+							<div className='kb-chat-intro'>
+								<Sparkles size={18} />
+								<p>
+									Salom! Menga kayfiyatingiz yoki qiziqqan janringizni ayting — mos filmni katalogdan
+									topib beraman.
+								</p>
+							</div>
+						)}
+						{messages.map((m, i) => (
+							<div key={i} className={`kb-chat-msg kb-chat-msg--${m.role}`}>
+								<p>{m.content}</p>
+								{m.role === 'assistant' &&
+									matchedMovies(m.content).map(mv => (
+										<button
+											key={mv.id}
+											type='button'
+											className='kb-chat-movie-chip'
+											onClick={() => {
+												onOpenMovie(mv);
+												setOpen(false);
+											}}>
+											<Film size={12} />
+											{mv.title}
+										</button>
+									))}
+							</div>
+						))}
+						{loading && (
+							<div className='kb-chat-msg kb-chat-msg--assistant kb-chat-typing'>
+								<Loader2 size={14} className='kb-spin' />
+								Yozmoqda...
+							</div>
+						)}
+					</div>
+
+					{!apiKey ? (
+						<div className='kb-chat-key-form'>
+							<KeyRound size={14} />
+							<input
+								type='password'
+								className='kb-input kb-ai-key-input'
+								placeholder='Anthropic API kalitingiz (sk-ant-...)'
+								value={keyDraft}
+								onChange={e => setKeyDraft(e.target.value)}
+								onKeyDown={e => {
+									if (e.key === 'Enter') handleSaveKey();
+								}}
+							/>
+							<button type='button' className='kb-btn-secondary kb-ai-key-save' onClick={handleSaveKey}>
+								Saqlash
+							</button>
+						</div>
+					) : (
+						<div className='kb-chat-input-row'>
+							<input
+								type='text'
+								className='kb-input kb-chat-input'
+								placeholder='Savolingizni yozing...'
+								value={input}
+								onChange={e => setInput(e.target.value)}
+								onKeyDown={e => {
+									if (e.key === 'Enter') handleSend();
+								}}
+								disabled={loading}
+							/>
+							<button
+								type='button'
+								className='kb-chat-send'
+								onClick={handleSend}
+								disabled={loading || !input.trim()}
+								aria-label='Yuborish'>
+								<Send size={16} />
+							</button>
+						</div>
+					)}
+					{error && <p className='kb-error-text kb-chat-error'>{error}</p>}
+				</div>
+			)}
+		</>
+	);
 }
 
 function Sprockets({ count = 14 }) {
@@ -843,7 +1059,7 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 
 	async function handleGenerateBlurb() {
 		if (!form.title.trim()) {
-			setAiError('Avval film nomini kiriting');
+			setAiError("Avval film nomini kiriting");
 			return;
 		}
 		if (!apiKey) {
@@ -1016,7 +1232,11 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 				<div className='kb-admin-field'>
 					<div className='kb-admin-field-head'>
 						<label className='kb-label'>Qisqacha tavsif</label>
-						<button type='button' className='kb-ai-generate-btn' onClick={handleGenerateBlurb} disabled={aiLoading}>
+						<button
+							type='button'
+							className='kb-ai-generate-btn'
+							onClick={handleGenerateBlurb}
+							disabled={aiLoading}>
 							{aiLoading ? <Loader2 size={14} className='kb-spin' /> : <Sparkles size={14} />}
 							{aiLoading ? 'Yozilmoqda...' : 'AI bilan yozish'}
 						</button>
@@ -1188,8 +1408,7 @@ export default function KinoBot() {
 		setToast(`"${newMovie.title}" qo'shildi`);
 	}
 
-	function saveSearchApiKey() {
-		const trimmed = apiKeyDraft.trim();
+	function persistApiKey(trimmed) {
 		if (!trimmed) return;
 		try {
 			localStorage.setItem(AI_KEY_STORAGE_KEY, trimmed);
@@ -1197,6 +1416,12 @@ export default function KinoBot() {
 			/* ignore */
 		}
 		setApiKey(trimmed);
+	}
+
+	function saveSearchApiKey() {
+		const trimmed = apiKeyDraft.trim();
+		if (!trimmed) return;
+		persistApiKey(trimmed);
 		setApiKeyDraft('');
 		setAiSearchError('');
 	}
@@ -1342,7 +1567,8 @@ export default function KinoBot() {
 								{query.trim() && (
 									<div className='kb-ai-search-add'>
 										<p className='kb-ai-search-lead'>
-											<Sparkles size={14} />"{query.trim()}" nomli film topilmadi — AI yordamida qo'shib ko'ramizmi?
+											<Sparkles size={14} />
+											"{query.trim()}" nomli film topilmadi — AI yordamida qo'shib ko'ramizmi?
 										</p>
 
 										{apiKey ? (
@@ -1352,7 +1578,7 @@ export default function KinoBot() {
 												onClick={handleAiSearchAdd}
 												disabled={aiSearchLoading}>
 												{aiSearchLoading ? <Loader2 size={16} className='kb-spin' /> : <Sparkles size={16} />}
-												{aiSearchLoading ? 'Yaratilmoqda...' : "AI bilan qo'shish"}
+												{aiSearchLoading ? 'Yaratilmoqda...' : 'AI bilan qo\'shish'}
 											</button>
 										) : (
 											<div className='kb-ai-key-form kb-ai-search-key-form'>
@@ -1420,6 +1646,10 @@ export default function KinoBot() {
 					<Check size={16} />
 					{toast}
 				</div>
+			)}
+
+			{!isAdmin && (
+				<ChatWidget movies={movies} apiKey={apiKey} onSaveApiKey={persistApiKey} onOpenMovie={setSelected} />
 			)}
 		</div>
 	);
