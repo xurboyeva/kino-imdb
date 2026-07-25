@@ -195,6 +195,17 @@ const MOVIES = [
 		blurb: "Tavsif tez orada to'ldiriladi.",
 		youtubeUrl: 'https://youtu.be/GHgJleDjV68?si=0Gsal05r3tfwIDsN',
 	},
+
+	{
+		id: 15,
+		title: 'Sniper',
+		year: 2016,
+		genre: 'Fantastik',
+		duration: 99,
+		rating: 8.3,
+		blurb: "Tavsif tez orada to'ldiriladi.",
+		youtubeUrl: 'https://youtu.be/wwKNxOG9R5s?si=BazzWbt2sPCnKyid',
+	},
 ];
 
 const GENRES = ['Barchasi', 'Fantastika', 'Jinoiy', 'Drama', 'Animatsiya', 'Triller', 'Tarixiy'];
