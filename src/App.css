@@ -529,6 +529,40 @@
 	border: none;
 }
 
+.kb-modal-thumb-btn {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+	background: none;
+}
+.kb-modal-play-overlay {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 60px;
+	height: 60px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	background: rgba(0, 0, 0, 0.5);
+	color: #fff;
+	backdrop-filter: blur(2px);
+	transition:
+		transform 0.15s ease,
+		background 0.15s ease;
+}
+.kb-modal-thumb-btn:hover .kb-modal-play-overlay,
+.kb-modal-thumb-btn:focus-visible .kb-modal-play-overlay {
+	background: var(--kb-red);
+	transform: translate(-50%, -50%) scale(1.08);
+}
+
 .kb-ticket-perf {
 	position: relative;
 	height: 0;

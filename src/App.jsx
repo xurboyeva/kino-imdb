@@ -41,6 +41,16 @@ const GENRE_THEME = {
 	Tarixiy: { a: '#28230F', b: '#5E5029', accent: '#E2CC7F' },
 };
 
+// Agar biror filmning "genre" maydoni GENRE_THEME ro'yxatidagi janrlardan
+// birortasiga aniq mos kelmasa (masalan, imlo xatosi tufayli), shu standart
+// rangdan foydalaniladi — shunda sayt "Cannot read properties of undefined"
+// xatosi bilan qulab tushmaydi.
+const DEFAULT_THEME = { a: '#241C1C', b: '#4A3B3B', accent: '#C9A227' };
+
+function getGenreTheme(genre) {
+	return GENRE_THEME[genre] || DEFAULT_THEME;
+}
+
 const MOVIES = [
 	{
 		id: 1,
@@ -260,6 +270,15 @@ function getYouTubeId(url) {
 	return null;
 }
 
+// YouTube har bir video uchun standart, doim mavjud bo'lgan thumbnail
+// (kichik surat) manzilini beradi — xuddi YouTube'da videoni bosishdan
+// oldin ko'rinadigan surat kabi. Bu tasodifiy internet-rasm emas, balki
+// aynan shu videoning YouTube'dagi rasmiy surati.
+function getYouTubeThumbnail(youtubeId) {
+	if (!youtubeId) return null;
+	return `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
+}
+
 function Sprockets({ count = 14 }) {
 	return (
 		<div className='kb-sprockets' aria-hidden='true'>
@@ -348,9 +367,11 @@ function GateScreen({ onEnter }) {
 --------------------------------------------------------- */
 
 function MovieCard({ movie, isFav, onToggleFav, onOpen, index }) {
-	const theme = GENRE_THEME[movie.genre];
+	const theme = getGenreTheme(movie.genre);
 	const [imgError, setImgError] = useState(false);
-	const hasPoster = Boolean(movie.poster) && !imgError;
+	const youtubeId = getYouTubeId(movie.youtubeUrl);
+	const posterSrc = movie.poster || getYouTubeThumbnail(youtubeId);
+	const hasPoster = Boolean(posterSrc) && !imgError;
 	return (
 		<article
 			className='kb-ticket'
@@ -367,7 +388,7 @@ function MovieCard({ movie, isFav, onToggleFav, onOpen, index }) {
 				aria-label={`${movie.title} haqida batafsil`}>
 				{hasPoster ? (
 					<img
-						src={movie.poster}
+						src={posterSrc}
 						alt={`${movie.title} plakati`}
 						className='kb-ticket-poster-img'
 						onError={() => setImgError(true)}
@@ -427,11 +448,14 @@ function MovieCard({ movie, isFav, onToggleFav, onOpen, index }) {
 --------------------------------------------------------- */
 
 function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
-	const theme = GENRE_THEME[movie.genre];
+	const theme = getGenreTheme(movie.genre);
 	const [imgError, setImgError] = useState(false);
 	const [playing, setPlaying] = useState(false);
-	const hasPoster = Boolean(movie.poster) && !imgError;
 	const youtubeId = getYouTubeId(movie.youtubeUrl);
+	// Agar mahsulotda o'z posteri bo'lmasa, YouTube'ning shu video uchun
+	// avtomatik beradigan asl thumbnail'idan foydalanamiz.
+	const posterSrc = movie.poster || getYouTubeThumbnail(youtubeId);
+	const hasPoster = Boolean(posterSrc) && !imgError;
 
 	useEffect(() => {
 		function onKey(e) {
@@ -469,12 +493,23 @@ function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
 							allowFullScreen
 						/>
 					) : hasPoster ? (
-						<img
-							src={movie.poster}
-							alt={`${movie.title} plakati`}
-							className='kb-ticket-poster-img'
-							onError={() => setImgError(true)}
-						/>
+						<button
+							type='button'
+							className='kb-modal-thumb-btn'
+							onClick={handleWatchClick}
+							aria-label={`${movie.title} treylerini ko'rish`}>
+							<img
+								src={posterSrc}
+								alt={`${movie.title} plakati`}
+								className='kb-ticket-poster-img'
+								onError={() => setImgError(true)}
+							/>
+							{youtubeId && (
+								<span className='kb-modal-play-overlay'>
+									<Play size={26} fill='currentColor' />
+								</span>
+							)}
+						</button>
 					) : (
 						<Film size={56} strokeWidth={1.2} />
 					)}
@@ -791,15 +826,16 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 					<p className='kb-empty-sub'>Hozircha filmlar yo'q.</p>
 				) : (
 					movies.map(m => {
-						const theme = GENRE_THEME[m.genre];
+						const theme = getGenreTheme(m.genre);
+						const rowPoster = m.poster || getYouTubeThumbnail(getYouTubeId(m.youtubeUrl));
 						return (
 							<div key={m.id} className='kb-admin-row'>
 								<span
 									className='kb-admin-row-swatch'
 									style={{ background: `linear-gradient(150deg, ${theme.a}, ${theme.b})`, color: theme.accent }}>
-									{m.poster ? (
+									{rowPoster ? (
 										<img
-											src={m.poster}
+											src={rowPoster}
 											alt=''
 											className='kb-admin-row-thumb'
 											onError={e => {
