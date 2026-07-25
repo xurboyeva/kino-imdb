@@ -184,17 +184,6 @@ const MOVIES = [
 		blurb: "Tavsif tez orada to'ldiriladi.",
 		youtubeUrl: 'https://youtu.be/oatcw4p6Wuw',
 	},
-
-	{
-		id: 14,
-		title: 'Sahro Jangchisi',
-		year: 2025,
-		genre: 'Tarixiy',
-		duration: 127,
-		rating: 7.4,
-		blurb: "Tavsif tez orada to'ldiriladi.",
-		youtubeUrl: 'https://youtu.be/GHgJleDjV68?si=0Gsal05r3tfwIDsN',
-	},
 ];
 
 const GENRES = ['Barchasi', 'Fantastika', 'Jinoiy', 'Drama', 'Animatsiya', 'Triller', 'Tarixiy'];
@@ -203,6 +192,8 @@ const ADMIN_GENRES = GENRES.filter(g => g !== 'Barchasi');
 const ADMIN_EMAIL = 'xurboyeva.01@gmail.com';
 const ADMIN_USERNAME = 'xurboyeva.01@gmail.com';
 const ADMIN_PASSWORD = 'xurboyeva_.010';
+
+const EMAIL_STORAGE_KEY = 'kinobot_email';
 
 const EMPTY_FORM = {
 	title: '',
@@ -824,8 +815,20 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 --------------------------------------------------------- */
 
 export default function KinoBot() {
-	const [email, setEmail] = useState('');
-	const [entered, setEntered] = useState(false);
+	const [email, setEmail] = useState(() => {
+		try {
+			return localStorage.getItem(EMAIL_STORAGE_KEY) || '';
+		} catch {
+			return '';
+		}
+	});
+	const [entered, setEntered] = useState(() => {
+		try {
+			return Boolean(localStorage.getItem(EMAIL_STORAGE_KEY));
+		} catch {
+			return false;
+		}
+	});
 	const [movies, setMovies] = useState(MOVIES);
 	const [query, setQuery] = useState('');
 	const [activeGenre, setActiveGenre] = useState('Barchasi');
@@ -857,6 +860,17 @@ export default function KinoBot() {
 
 	function handleWatch(movie) {
 		setToast(`"${movie.title}" tez orada platformada!`);
+	}
+
+	function handleSwitchEmail() {
+		try {
+			localStorage.removeItem(EMAIL_STORAGE_KEY);
+		} catch {
+			/* ignore */
+		}
+		setEmail('');
+		setEntered(false);
+		setIsAdmin(false);
 	}
 
 	function addMovie(newMovie) {
@@ -897,6 +911,11 @@ export default function KinoBot() {
 					onEnter={value => {
 						setEmail(value);
 						setEntered(true);
+						try {
+							localStorage.setItem(EMAIL_STORAGE_KEY, value);
+						} catch {
+							/* ignore */
+						}
 					}}
 				/>
 			</div>
@@ -955,6 +974,9 @@ export default function KinoBot() {
 				<>
 					<p className='kb-greeting'>
 						Xush kelibsiz, <span className='kb-greeting-name'>{displayName}</span> — o'rningizni band qilib bo'ldingiz.
+						<button type='button' className='kb-switch-email' onClick={handleSwitchEmail}>
+							boshqa email bilan kirish
+						</button>
 					</p>
 
 					<nav className='kb-genre-row' aria-label='Janrlar'>
