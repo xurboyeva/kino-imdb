@@ -200,7 +200,7 @@ const MOVIES = [
 		id: 15,
 		title: 'Sniper',
 		year: 2016,
-		genre: 'Fantastik',
+		genre: 'Fantastika',
 		duration: 99,
 		rating: 8.3,
 		blurb: "Tavsif tez orada to'ldiriladi.",
