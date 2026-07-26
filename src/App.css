@@ -580,7 +580,9 @@
 	background: rgba(0, 0, 0, 0.5);
 	color: #fff;
 	backdrop-filter: blur(2px);
-	transition: transform 0.15s ease, background 0.15s ease;
+	transition:
+		transform 0.15s ease,
+		background 0.15s ease;
 }
 .kb-modal-thumb-btn:hover .kb-modal-play-overlay,
 .kb-modal-thumb-btn:focus-visible .kb-modal-play-overlay {
@@ -896,7 +898,9 @@
 	border-radius: 100px;
 	cursor: pointer;
 	white-space: nowrap;
-	transition: background 0.15s ease, transform 0.1s ease;
+	transition:
+		background 0.15s ease,
+		transform 0.1s ease;
 }
 .kb-ai-generate-btn:hover:not(:disabled) {
 	background: rgba(201, 162, 39, 0.28);
@@ -912,8 +916,12 @@
 	animation: kb-spin-rotate 0.9s linear infinite;
 }
 @keyframes kb-spin-rotate {
-	from { transform: rotate(0deg); }
-	to { transform: rotate(360deg); }
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 .kb-admin-form-grid {
@@ -1198,6 +1206,21 @@
 }
 .kb-chat-movie-chip:hover {
 	border-color: var(--kb-gold);
+	color: var(--kb-gold);
+}
+
+.kb-chat-key-wrap {
+	border-top: 1px solid var(--kb-border);
+}
+.kb-chat-key-wrap .kb-chat-key-form {
+	border-top: none;
+}
+.kb-chat-key-hint {
+	margin: 0 14px 12px;
+	font-size: 11px;
+}
+.kb-ai-key-hint a,
+.kb-chat-key-hint a {
 	color: var(--kb-gold);
 }
 

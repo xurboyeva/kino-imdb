@@ -232,8 +232,8 @@ const ADMIN_USERNAME = 'xurboyeva.01@gmail.com';
 const ADMIN_PASSWORD = 'xurboyeva_.010';
 
 const EMAIL_STORAGE_KEY = 'kinobot_email';
-const AI_KEY_STORAGE_KEY = 'kinobot_ai_key';
-const AI_MODEL = 'claude-sonnet-5';
+const AI_KEY_STORAGE_KEY = 'kinobot_gemini_key';
+const AI_MODEL = 'gemini-2.5-flash';
 
 const EMPTY_FORM = {
 	title: '',
@@ -290,15 +290,57 @@ function getYouTubeThumbnail(youtubeId) {
 /* ---------------------------------------------------------
    AI: film tavsifini avtomatik yozib berish
 
-   Bu funksiya to'g'ridan-to'g'ri brauzerdan Claude API'ga (Anthropic)
-   so'rov yuboradi. Bu uchun adminning o'z Anthropic API kaliti kerak
-   (https://console.anthropic.com dan olinadi) — kalit faqat shu
-   qurilmaning localStorage'ida saqlanadi, hech qayerga yuborilmaydi.
+   Bu funksiya to'g'ridan-to'g'ri brauzerdan Google Gemini API'ga
+   so'rov yuboradi. Bu — Google Gemini'ning BEPUL tarifi (kredit karta
+   shart emas). Kalitni https://aistudio.google.com/apikey dan olish
+   mumkin — u faqat shu qurilmaning localStorage'ida saqlanadi, hech
+   qayerga yuborilmaydi.
 
    DIQQAT: bu — soddalashtirilgan demo yondashuv. Haqiqiy production
    loyihada API kalitini brauzerda saqlash xavfsiz emas — bunday
    so'rovlar odatda o'z backendingiz orqali yuborilishi kerak.
 --------------------------------------------------------- */
+/* ---------------------------------------------------------
+   Gemini API bilan umumiy aloqa funksiyasi
+
+   Google Gemini'ning BEPUL tarifidan foydalanamiz (kredit karta
+   shart emas). API kalitni https://aistudio.google.com/apikey
+   sahifasidan olish mumkin. So'rov to'g'ridan-to'g'ri brauzerdan
+   Google serveriga yuboriladi.
+--------------------------------------------------------- */
+async function callGemini({ systemPrompt, contents, apiKey, maxOutputTokens = 300 }) {
+	const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent`, {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			'x-goog-api-key': apiKey,
+		},
+		body: JSON.stringify({
+			system_instruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
+			contents,
+			generationConfig: { maxOutputTokens, temperature: 0.8 },
+		}),
+	});
+
+	if (!response.ok) {
+		if (response.status === 400 || response.status === 401 || response.status === 403) {
+			throw new Error("API kalit noto'g'ri yoki yaroqsiz");
+		}
+		if (response.status === 429) {
+			throw new Error("Bepul limitga yetdingiz, biroz kuting va qayta urinib ko'ring");
+		}
+		throw new Error(`So'rov muvaffaqiyatsiz tugadi (${response.status})`);
+	}
+
+	const data = await response.json();
+	const text = data.candidates?.[0]?.content?.parts
+		?.map(p => p.text || '')
+		.join('')
+		?.trim();
+	if (!text) throw new Error('AI javob qaytarmadi');
+	return text;
+}
+
 async function generateBlurbWithAI({ title, genre, year, apiKey }) {
 	const prompt = `Sen professional o'zbek tilida kino-tavsif yozuvchisisan. Quyidagi film uchun bitta, tabiiy, jozibali va 1-2 gapdan iborat qisqacha tavsif (blurb) yoz.
 
@@ -312,33 +354,11 @@ Qoidalar:
 - Filmning syujetini his-tuyg'u bilan, lekin oshirib yubormasdan tasvirla.
 - Taxminan 15-30 so'zdan iborat bo'lsin.`;
 
-	const response = await fetch('https://api.anthropic.com/v1/messages', {
-		method: 'POST',
-		headers: {
-			'content-type': 'application/json',
-			'x-api-key': apiKey,
-			'anthropic-version': '2023-06-01',
-			'anthropic-dangerous-direct-browser-access': 'true',
-		},
-		body: JSON.stringify({
-			model: AI_MODEL,
-			max_tokens: 200,
-			messages: [{ role: 'user', content: prompt }],
-		}),
+	return callGemini({
+		contents: [{ role: 'user', parts: [{ text: prompt }] }],
+		apiKey,
+		maxOutputTokens: 200,
 	});
-
-	if (!response.ok) {
-		if (response.status === 401) {
-			throw new Error("API kalit noto'g'ri yoki eskirgan");
-		}
-		throw new Error(`So'rov muvaffaqiyatsiz tugadi (${response.status})`);
-	}
-
-	const data = await response.json();
-	const textBlock = data.content?.find(block => block.type === 'text');
-	const text = textBlock?.text?.trim();
-	if (!text) throw new Error('AI javob qaytarmadi');
-	return text;
 }
 
 /* ---------------------------------------------------------
@@ -364,32 +384,11 @@ Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki m
   "blurb": "<o'zbek tilida, 15-30 so'zdan iborat qisqacha tavsif>"
 }`;
 
-	const response = await fetch('https://api.anthropic.com/v1/messages', {
-		method: 'POST',
-		headers: {
-			'content-type': 'application/json',
-			'x-api-key': apiKey,
-			'anthropic-version': '2023-06-01',
-			'anthropic-dangerous-direct-browser-access': 'true',
-		},
-		body: JSON.stringify({
-			model: AI_MODEL,
-			max_tokens: 300,
-			messages: [{ role: 'user', content: prompt }],
-		}),
+	const raw = await callGemini({
+		contents: [{ role: 'user', parts: [{ text: prompt }] }],
+		apiKey,
+		maxOutputTokens: 300,
 	});
-
-	if (!response.ok) {
-		if (response.status === 401) {
-			throw new Error("API kalit noto'g'ri yoki eskirgan");
-		}
-		throw new Error(`So'rov muvaffaqiyatsiz tugadi (${response.status})`);
-	}
-
-	const data = await response.json();
-	const textBlock = data.content?.find(block => block.type === 'text');
-	const raw = textBlock?.text?.trim();
-	if (!raw) throw new Error('AI javob qaytarmadi');
 
 	// AI ba'zan JSON'ni ```json ... ``` bilan o'rab yuborishi mumkin — tozalaymiz
 	const cleaned = raw
@@ -435,34 +434,17 @@ ${catalogText}
 - Agar so'ralgan narsa katalogda yo'q bo'lsa, buni ochiq ayt va eng yaqin mos keladigan variantni taklif qil.
 - Sen sotib olish, chipta band qilish kabi amallarni bajara olmaysan — faqat maslahat va ma'lumot berasan.`;
 
-	const response = await fetch('https://api.anthropic.com/v1/messages', {
-		method: 'POST',
-		headers: {
-			'content-type': 'application/json',
-			'x-api-key': apiKey,
-			'anthropic-version': '2023-06-01',
-			'anthropic-dangerous-direct-browser-access': 'true',
-		},
-		body: JSON.stringify({
-			model: AI_MODEL,
-			max_tokens: 400,
-			system: systemPrompt,
-			messages: history.map(m => ({ role: m.role, content: m.content })),
-		}),
+	const response = await callGemini({
+		systemPrompt,
+		contents: history.map(m => ({
+			role: m.role === 'assistant' ? 'model' : 'user',
+			parts: [{ text: m.content }],
+		})),
+		apiKey,
+		maxOutputTokens: 400,
 	});
 
-	if (!response.ok) {
-		if (response.status === 401) {
-			throw new Error("API kalit noto'g'ri yoki eskirgan");
-		}
-		throw new Error(`So'rov muvaffaqiyatsiz tugadi (${response.status})`);
-	}
-
-	const data = await response.json();
-	const textBlock = data.content?.find(block => block.type === 'text');
-	const text = textBlock?.text?.trim();
-	if (!text) throw new Error('AI javob qaytarmadi');
-	return text;
+	return response;
 }
 
 /* ---------------------------------------------------------
@@ -493,7 +475,7 @@ function ChatWidget({ movies, apiKey, onSaveApiKey, onOpenMovie }) {
 		const text = input.trim();
 		if (!text || loading) return;
 		if (!apiKey) {
-			setError('Avval Anthropic API kalitingizni kiriting');
+			setError('Avval Gemini API kalitingizni kiriting');
 			return;
 		}
 		setError('');
@@ -578,21 +560,30 @@ function ChatWidget({ movies, apiKey, onSaveApiKey, onOpenMovie }) {
 					</div>
 
 					{!apiKey ? (
-						<div className='kb-chat-key-form'>
-							<KeyRound size={14} />
-							<input
-								type='password'
-								className='kb-input kb-ai-key-input'
-								placeholder='Anthropic API kalitingiz (sk-ant-...)'
-								value={keyDraft}
-								onChange={e => setKeyDraft(e.target.value)}
-								onKeyDown={e => {
-									if (e.key === 'Enter') handleSaveKey();
-								}}
-							/>
-							<button type='button' className='kb-btn-secondary kb-ai-key-save' onClick={handleSaveKey}>
-								Saqlash
-							</button>
+						<div className='kb-chat-key-wrap'>
+							<div className='kb-chat-key-form'>
+								<KeyRound size={14} />
+								<input
+									type='password'
+									className='kb-input kb-ai-key-input'
+									placeholder='Gemini API kalitingiz (AIzaSy...)'
+									value={keyDraft}
+									onChange={e => setKeyDraft(e.target.value)}
+									onKeyDown={e => {
+										if (e.key === 'Enter') handleSaveKey();
+									}}
+								/>
+								<button type='button' className='kb-btn-secondary kb-ai-key-save' onClick={handleSaveKey}>
+									Saqlash
+								</button>
+							</div>
+							<p className='kb-ai-key-hint kb-chat-key-hint'>
+								Bepul kalitni{' '}
+								<a href='https://aistudio.google.com/apikey' target='_blank' rel='noreferrer'>
+									aistudio.google.com/apikey
+								</a>{' '}
+								dan oling.
+							</p>
 						</div>
 					) : (
 						<div className='kb-chat-input-row'>
@@ -1062,7 +1053,7 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 		}
 		if (!apiKey) {
 			setShowKeyField(true);
-			setAiError('Avval Anthropic API kalitingizni kiriting');
+			setAiError('Avval Gemini API kalitingizni kiriting');
 			return;
 		}
 		setAiError('');
@@ -1140,7 +1131,7 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 					{apiKey && !showKeyField ? (
 						<div className='kb-ai-key-status'>
 							<KeyRound size={14} />
-							Anthropic API kaliti ulangan
+							Gemini API kaliti ulangan
 							<button type='button' className='kb-ai-key-change' onClick={() => setShowKeyField(true)}>
 								o'zgartirish
 							</button>
@@ -1154,7 +1145,7 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 							<input
 								type='password'
 								className='kb-input kb-ai-key-input'
-								placeholder='Anthropic API kalitingiz (sk-ant-...)'
+								placeholder='Gemini API kalitingiz (AIzaSy...)'
 								value={apiKeyDraft}
 								onChange={e => setApiKeyDraft(e.target.value)}
 								onKeyDown={e => {
@@ -1167,7 +1158,11 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 						</div>
 					)}
 					<p className='kb-ai-key-hint'>
-						AI tavsif yozish uchun kerak. Kalit faqat shu brauzerda saqlanadi, hech qayerga yuborilmaydi.
+						AI tavsif yozish uchun kerak — bu <strong>bepul</strong> (kredit karta shart emas). Kalitni{' '}
+						<a href='https://aistudio.google.com/apikey' target='_blank' rel='noreferrer'>
+							aistudio.google.com/apikey
+						</a>{' '}
+						dan oling. Faqat shu brauzerda saqlanadi, hech qayerga yuborilmaydi.
 					</p>
 				</div>
 
@@ -1424,7 +1419,7 @@ export default function KinoBot() {
 		const title = query.trim();
 		if (!title) return;
 		if (!apiKey) {
-			setAiSearchError('Avval Anthropic API kalitingizni kiriting');
+			setAiSearchError('Avval Gemini API kalitingizni kiriting');
 			return;
 		}
 		setAiSearchError('');
@@ -1579,7 +1574,7 @@ export default function KinoBot() {
 												<input
 													type='password'
 													className='kb-input kb-ai-key-input'
-													placeholder='Anthropic API kalitingiz (sk-ant-...)'
+													placeholder='Gemini API kalitingiz (AIzaSy...)'
 													value={apiKeyDraft}
 													onChange={e => setApiKeyDraft(e.target.value)}
 													onKeyDown={e => {
