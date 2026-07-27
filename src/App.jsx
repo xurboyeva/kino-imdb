@@ -29,13 +29,6 @@ import {
 
 /* ---------------------------------------------------------
    Data
-
-   Real poster images: add a `poster: "https://..."` field to
-   any movie below (use a URL you have the rights to — e.g.
-   your own TMDB API key, or licensed assets). Movies without
-   a `poster` field automatically show the illustrated ticket
-   design instead, so nothing breaks if a link is missing or
-   fails to load.
 --------------------------------------------------------- */
 
 const GENRE_THEME = {
@@ -186,36 +179,6 @@ const MOVIES = [
 		youtubeUrl: 'https://www.youtube.com/watch?v=jxL87QbZ9Pc',
 		trailerOnly: true,
 	},
-	{
-		id: 13,
-		title: '7 Inson Changalda',
-		year: 2000,
-		genre: 'Fantastika',
-		duration: 95,
-		rating: 7.0,
-		blurb: "Tavsif tez orada to'ldiriladi.",
-		youtubeUrl: 'https://youtu.be/oatcw4p6Wuw',
-	},
-	{
-		id: 14,
-		title: 'Sahro Jangchisi',
-		year: 2025,
-		genre: 'Tarixiy',
-		duration: 127,
-		rating: 7.4,
-		blurb: "Tavsif tez orada to'ldiriladi.",
-		youtubeUrl: 'https://youtu.be/GHgJleDjV68?si=0Gsal05r3tfwIDsN',
-	},
-	{
-		id: 15,
-		title: 'Sniper',
-		year: 2016,
-		genre: 'Fantastika',
-		duration: 99,
-		rating: 8.3,
-		blurb: "Tavsif tez orada to'ldiriladi.",
-		youtubeUrl: 'https://youtu.be/wwKNxOG9R5s?si=BazzWbt2sPCnKyid',
-	},
 ];
 
 const GENRES = ['Barchasi', 'Fantastika', 'Jinoiy', 'Drama', 'Animatsiya', 'Triller', 'Tarixiy'];
@@ -227,7 +190,7 @@ const ADMIN_PASSWORD = 'xurboyeva_.010';
 
 const EMAIL_STORAGE_KEY = 'kinobot_email';
 const AI_KEY_STORAGE_KEY = 'kinobot_gemini_key';
-const AI_MODEL = 'gemini-1.5-flash';
+const AI_MODEL = 'gemini-2.5-flash';
 
 const HARDCODED_GEMINI_KEY = '';
 
@@ -251,6 +214,10 @@ const EMPTY_FORM = {
 	youtubeUrl: '',
 };
 
+/* ---------------------------------------------------------
+   Helpers
+--------------------------------------------------------- */
+
 function isValidEmail(value) {
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
@@ -258,7 +225,7 @@ function isValidEmail(value) {
 function formatDuration(min) {
 	const h = Math.floor(min / 60);
 	const m = min % 60;
-	return `${h}s ${m}d`;
+	return h > 0 ? `${h}s ${m}d` : `${m}d`;
 }
 
 function getYouTubeId(url) {
@@ -285,9 +252,14 @@ function getYouTubeThumbnail(youtubeId) {
 }
 
 /* ---------------------------------------------------------
-   Gemini API call (Fixed 404 Error)
+   Gemini API Functions
 --------------------------------------------------------- */
+
 async function callGemini({ systemPrompt, contents, apiKey, maxOutputTokens = 300 }) {
+	if (!apiKey) {
+		throw new Error('Gemini API kaliti kiritilmagan');
+	}
+
 	const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent`, {
 		method: 'POST',
 		headers: {
@@ -329,8 +301,7 @@ Yili: ${year || "noma'lum"}
 
 Qoidalar:
 - Faqat o'zbek tilida yoz.
-- Faqat tavsif matnini qaytar, boshqa hech narsa yozma (izoh, sarlavha, tirnoq belgisi shart emas).
-- Filmning syujetini his-tuyg'u bilan, lekin oshirib yubormasdan tasvirla.
+- Faqat tavsif matnini qaytar, boshqa hech narsa yozma.
 - Taxminan 15-30 so'zdan iborat bo'lsin.`;
 
 	return callGemini({
@@ -342,7 +313,7 @@ Qoidalar:
 
 async function generateMovieWithAI({ title, apiKey }) {
 	const genreList = ADMIN_GENRES.join(', ');
-	const prompt = `Sen kinolar bo'yicha bilimdon yordamchisan. Foydalanuvchi "${title}" nomli filmni qidirmoqda, lekin katalogda topilmadi. Shu film haqida ma'lumot ber (agar bu haqiqiy, tanish film bo'lsa — haqiqiy ma'lumotlarni ishlat; agar tanimasang yoki noaniq bo'lsa — mantiqiy, ishonchli taxmin qil).
+	const prompt = `Sen kinolar bo'yicha bilimdon yordamchisan. Foydalanuvchi "${title}" nomli filmni qidirmoqda, lekin katalogda topilmadi. Shu film haqida ma'lumot ber.
 
 Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki markdown belgisi qo'shma:
 
@@ -388,15 +359,12 @@ async function sendChatMessage({ history, movies, apiKey }) {
 
 Qat'iy qoidalar:
 - Faqat o'zbek tilida javob ber.
-- Javoblaring qisqa va tabiiy bo'lsin (odatda 1-4 gap), keraksiz uzun matn yozma.
-- Tavsiya berayotganda FAQAT quyidagi katalogdagi filmlardan tanla — bu ro'yxatdan tashqari film tavsiya qilma, chunki saytda ular yo'q:
+- Javoblaring qisqa va tabiiy bo'lsin.
+- Tavsiya berayotganda FAQAT quyidagi katalogdagi filmlardan tanla:
 
-${catalogText}
+${catalogText}`;
 
-- Agar so'ralgan narsa katalogda yo'q bo'lsa, buni ochiq ayt va eng yaqin mos keladigan variantni taklif qil.
-- Sen sotib olish, chipta band qilish kabi amallarni bajara olmaysan — faqat maslahat va ma'lumot berasan.`;
-
-	const response = await callGemini({
+	return callGemini({
 		systemPrompt,
 		contents: history.map(m => ({
 			role: m.role === 'assistant' ? 'model' : 'user',
@@ -405,9 +373,11 @@ ${catalogText}
 		apiKey,
 		maxOutputTokens: 400,
 	});
-
-	return response;
 }
+
+/* ---------------------------------------------------------
+   Components
+--------------------------------------------------------- */
 
 function ChatWidget({ movies, apiKey, onSaveApiKey, onOpenMovie }) {
 	const [open, setOpen] = useState(false);
@@ -644,8 +614,6 @@ function GateScreen({ onEnter }) {
 						<ArrowRight size={16} />
 					</button>
 				</div>
-
-				<p className='kb-gate-fine'>Email faqat shu seansga kirish uchun ishlatiladi, hech kimga yuborilmaydi.</p>
 			</div>
 			<Sprockets count={10} />
 		</div>
@@ -658,6 +626,7 @@ function MovieCard({ movie, isFav, onToggleFav, onOpen, index }) {
 	const youtubeId = getYouTubeId(movie.youtubeUrl);
 	const posterSrc = movie.poster || getYouTubeThumbnail(youtubeId);
 	const hasPoster = Boolean(posterSrc) && !imgError;
+
 	return (
 		<article
 			className='kb-ticket'
@@ -1093,13 +1062,6 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 							</button>
 						</div>
 					)}
-					<p className='kb-ai-key-hint'>
-						AI tavsif yozish uchun kerak — bu <strong>bepul</strong> (kredit karta shart emas). Kalitni{' '}
-						<a href='https://aistudio.google.com/apikey' target='_blank' rel='noreferrer'>
-							aistudio.google.com/apikey
-						</a>{' '}
-						dan oling. Faqat shu brauzerda saqlanadi, hech qayerga yuborilmaydi.
-					</p>
 				</div>
 
 				<div className='kb-admin-form-grid'>
@@ -1168,7 +1130,7 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 					</div>
 					<textarea
 						className='kb-input kb-admin-input kb-admin-textarea'
-						placeholder='Film haqida bir-ikki gap — yoki yuqoridagi AI tugmasini bosing'
+						placeholder='Film haqida bir-ikki gap'
 						value={form.blurb}
 						onChange={e => updateField('blurb', e.target.value)}
 					/>
@@ -1179,17 +1141,17 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 					<input
 						type='text'
 						className='kb-input kb-admin-input'
-						placeholder="https://... (bo'sh qoldirsangiz, dizayn avtomatik chiqadi)"
+						placeholder='https://...'
 						value={form.poster}
 						onChange={e => updateField('poster', e.target.value)}
 					/>
 				</div>
 				<div className='kb-admin-field'>
-					<label className='kb-label'>YouTube video linki (ixtiyoriy — tomosha qilish uchun)</label>
+					<label className='kb-label'>YouTube video linki (ixtiyoriy)</label>
 					<input
 						type='text'
 						className='kb-input kb-admin-input'
-						placeholder='https://youtu.be/... yoki https://youtube.com/watch?v=...'
+						placeholder='https://youtu.be/...'
 						value={form.youtubeUrl}
 						onChange={e => updateField('youtubeUrl', e.target.value)}
 					/>
@@ -1380,7 +1342,7 @@ export default function KinoBot() {
 		});
 	}, [movies, query, activeGenre, showFavOnly, favorites]);
 
-	const displayName = email.split('@')[0];
+	const displayName = email ? email.split('@')[0] : '';
 	const isAdminEmail = email.trim().toLowerCase() === ADMIN_EMAIL;
 
 	if (!entered) {
