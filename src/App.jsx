@@ -235,6 +235,32 @@ const EMAIL_STORAGE_KEY = 'kinobot_email';
 const AI_KEY_STORAGE_KEY = 'kinobot_gemini_key';
 const AI_MODEL = 'gemini-2.5-flash';
 
+// ===========================================================
+// SIZNING BEPUL GEMINI API KALITINGIZ
+// ===========================================================
+// Agar shu qatorga o'z kalitingizni yozib qo'ysangiz, saytga kiruvchi
+// hech kimdan kalit so'ralmaydi — AI funksiyalari (chat, tavsif yozish,
+// qidiruvda qo'shish) darhol, hech qanday sozlashsiz ishlaydi.
+//
+// Kalitni https://aistudio.google.com/apikey dan bepul olasiz.
+//
+// DIQQAT: bu kalit sayt kodida OCHIQ turadi — har qanday tashrifchi
+// brauzer orqali (masalan, "Ko'rish manbasi" yoki DevTools) uni ko'ra
+// oladi va sizning bepul limitingizdan foydalanishi mumkin. Bu —
+// shaxsiy/portfolio loyihalar uchun odatiy, lekin xavfsiz emas.
+// Agar buni xohlamasangiz, shu qatorni bo'sh ('') qoldiring — u holda
+// har bir tashrifchi (yoki admin) o'z kalitini bir marta kiritadi.
+const HARDCODED_GEMINI_KEY = ''; // <-- shu yerga o'z kalitingizni qo'shtirnoq ichiga yozing
+
+function getInitialApiKey() {
+	if (HARDCODED_GEMINI_KEY) return HARDCODED_GEMINI_KEY;
+	try {
+		return localStorage.getItem(AI_KEY_STORAGE_KEY) || '';
+	} catch {
+		return '';
+	}
+}
+
 const EMPTY_FORM = {
 	title: '',
 	genre: ADMIN_GENRES[0],
@@ -1011,13 +1037,7 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 	const [form, setForm] = useState(EMPTY_FORM);
 	const [formError, setFormError] = useState('');
 
-	const [apiKey, setApiKey] = useState(() => {
-		try {
-			return localStorage.getItem(AI_KEY_STORAGE_KEY) || '';
-		} catch {
-			return '';
-		}
-	});
+	const [apiKey, setApiKey] = useState(getInitialApiKey);
 	const [apiKeyDraft, setApiKeyDraft] = useState('');
 	const [showKeyField, setShowKeyField] = useState(false);
 	const [aiLoading, setAiLoading] = useState(false);
@@ -1131,13 +1151,19 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 					{apiKey && !showKeyField ? (
 						<div className='kb-ai-key-status'>
 							<KeyRound size={14} />
-							Gemini API kaliti ulangan
-							<button type='button' className='kb-ai-key-change' onClick={() => setShowKeyField(true)}>
-								o'zgartirish
-							</button>
-							<button type='button' className='kb-ai-key-change' onClick={clearApiKey}>
-								o'chirish
-							</button>
+							{HARDCODED_GEMINI_KEY ? (
+								'Gemini API kaliti kodda sozlangan'
+							) : (
+								<>
+									Gemini API kaliti ulangan
+									<button type='button' className='kb-ai-key-change' onClick={() => setShowKeyField(true)}>
+										o'zgartirish
+									</button>
+									<button type='button' className='kb-ai-key-change' onClick={clearApiKey}>
+										o'chirish
+									</button>
+								</>
+							)}
 						</div>
 					) : (
 						<div className='kb-ai-key-form'>
@@ -1344,13 +1370,7 @@ export default function KinoBot() {
 
 	// AI orqali qidiruvda topilmagan filmni qo'shish uchun holat.
 	// Admin panelda saqlangan API kalit shu yerda ham qayta ishlatiladi.
-	const [apiKey, setApiKey] = useState(() => {
-		try {
-			return localStorage.getItem(AI_KEY_STORAGE_KEY) || '';
-		} catch {
-			return '';
-		}
-	});
+	const [apiKey, setApiKey] = useState(getInitialApiKey);
 	const [apiKeyDraft, setApiKeyDraft] = useState('');
 	const [aiSearchLoading, setAiSearchLoading] = useState(false);
 	const [aiSearchError, setAiSearchError] = useState('');
