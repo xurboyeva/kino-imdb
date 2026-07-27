@@ -356,7 +356,18 @@ async function callGemini({ systemPrompt, contents, apiKey, maxOutputTokens = 30
 				body: JSON.stringify({
 					systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
 					contents,
-					generationConfig: { maxOutputTokens, temperature: 0.8 },
+					generationConfig: {
+						maxOutputTokens,
+						temperature: 0.8,
+						// Gemini 2.5/3.5 Flash modellari javob yozishdan oldin "ichki
+						// fikrlash" (thinking) qiladi, va bu fikrlash tokenlari ham
+						// maxOutputTokens limitidan hisoblanadi. Shu sabab javoblar
+						// past limitlarda (masalan 300-400) yarim so'zda kesilib
+						// qolardi — fikrlash butun byudjetni yeb qo'yardi. Buni
+						// nolga tushirib, butun byudjetni ko'rinadigan javobga
+						// ajratamiz.
+						thinkingConfig: { thinkingBudget: 0 },
+					},
 				}),
 			});
 		} catch (networkErr) {
@@ -376,6 +387,14 @@ async function callGemini({ systemPrompt, contents, apiKey, maxOutputTokens = 30
 			}
 
 			if (response.status === 400 || response.status === 401 || response.status === 403) {
+				// Ba'zi eski/lite modellar thinkingConfig maydonini tushunmasligi
+				// mumkin va shu sababli 400 xato qaytarishi mumkin — bunday holda
+				// darhol to'xtamasdan, ro'yxatdagi keyingi modelni sinab ko'ramiz.
+				const isThinkingConfigIssue = /thinking/i.test(detail);
+				if (isThinkingConfigIssue) {
+					lastError = new Error(detail || "Model thinkingConfig'ni qo'llab-quvvatlamaydi");
+					continue;
+				}
 				throw new Error(detail ? `API kalit muammosi: ${detail}` : "API kalit noto'g'ri yoki yaroqsiz");
 			}
 			if (response.status === 404) {
@@ -420,7 +439,7 @@ Qoidalar:
 	return callGemini({
 		contents: [{ role: 'user', parts: [{ text: prompt }] }],
 		apiKey,
-		maxOutputTokens: 200,
+		maxOutputTokens: 300,
 	});
 }
 
@@ -450,7 +469,7 @@ Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki m
 	const raw = await callGemini({
 		contents: [{ role: 'user', parts: [{ text: prompt }] }],
 		apiKey,
-		maxOutputTokens: 300,
+		maxOutputTokens: 400,
 	});
 
 	// AI ba'zan JSON'ni ```json ... ``` bilan o'rab yuborishi mumkin — tozalaymiz
@@ -504,7 +523,7 @@ ${catalogText}
 			parts: [{ text: m.content }],
 		})),
 		apiKey,
-		maxOutputTokens: 400,
+		maxOutputTokens: 600,
 	});
 
 	return response;
