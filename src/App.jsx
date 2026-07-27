@@ -18,7 +18,6 @@ import {
 	Trash2,
 	Plus,
 	ShieldCheck,
-	ExternalLink,
 	Sparkles,
 	Loader2,
 	KeyRound,
@@ -956,16 +955,6 @@ function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
 								<Play size={18} fill='currentColor' />
 								{movie.trailerOnly ? "Treylerni ko'rish" : 'Tomosha qilish'}
 							</button>
-						)}
-						{youtubeId && (
-							<a
-								href={`https://www.youtube.com/watch?v=${youtubeId}`}
-								target='_blank'
-								rel='noopener noreferrer'
-								className='kb-btn-secondary'>
-								<ExternalLink size={18} />
-								YouTube'da ochish
-							</a>
 						)}
 						<button
 							type='button'
