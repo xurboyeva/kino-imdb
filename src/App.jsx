@@ -885,7 +885,7 @@ function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
 					{playing && youtubeId ? (
 						<iframe
 							className='kb-modal-video'
-							src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0`}
+							src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3&fs=1&playsinline=1`}
 							title={movie.title}
 							allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
 							allowFullScreen
