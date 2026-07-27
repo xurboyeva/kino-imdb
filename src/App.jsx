@@ -47,10 +47,6 @@ const GENRE_THEME = {
 	Tarixiy: { a: '#28230F', b: '#5E5029', accent: '#E2CC7F' },
 };
 
-// Agar biror filmning "genre" maydoni GENRE_THEME ro'yxatidagi janrlardan
-// birortasiga aniq mos kelmasa (masalan, imlo xatosi tufayli), shu standart
-// rangdan foydalaniladi — shunda sayt "Cannot read properties of undefined"
-// xatosi bilan qulab tushmaydi.
 const DEFAULT_THEME = { a: '#241C1C', b: '#4A3B3B', accent: '#C9A227' };
 
 function getGenreTheme(genre) {
@@ -200,7 +196,6 @@ const MOVIES = [
 		blurb: "Tavsif tez orada to'ldiriladi.",
 		youtubeUrl: 'https://youtu.be/oatcw4p6Wuw',
 	},
-
 	{
 		id: 14,
 		title: 'Sahro Jangchisi',
@@ -211,7 +206,6 @@ const MOVIES = [
 		blurb: "Tavsif tez orada to'ldiriladi.",
 		youtubeUrl: 'https://youtu.be/GHgJleDjV68?si=0Gsal05r3tfwIDsN',
 	},
-
 	{
 		id: 15,
 		title: 'Sniper',
@@ -233,24 +227,9 @@ const ADMIN_PASSWORD = 'xurboyeva_.010';
 
 const EMAIL_STORAGE_KEY = 'kinobot_email';
 const AI_KEY_STORAGE_KEY = 'kinobot_gemini_key';
-const AI_MODEL = 'gemini-2.5-flash';
+const AI_MODEL = 'gemini-1.5-flash';
 
-// ===========================================================
-// SIZNING BEPUL GEMINI API KALITINGIZ
-// ===========================================================
-// Agar shu qatorga o'z kalitingizni yozib qo'ysangiz, saytga kiruvchi
-// hech kimdan kalit so'ralmaydi — AI funksiyalari (chat, tavsif yozish,
-// qidiruvda qo'shish) darhol, hech qanday sozlashsiz ishlaydi.
-//
-// Kalitni https://aistudio.google.com/apikey dan bepul olasiz.
-//
-// DIQQAT: bu kalit sayt kodida OCHIQ turadi — har qanday tashrifchi
-// brauzer orqali (masalan, "Ko'rish manbasi" yoki DevTools) uni ko'ra
-// oladi va sizning bepul limitingizdan foydalanishi mumkin. Bu —
-// shaxsiy/portfolio loyihalar uchun odatiy, lekin xavfsiz emas.
-// Agar buni xohlamasangiz, shu qatorni bo'sh ('') qoldiring — u holda
-// har bir tashrifchi (yoki admin) o'z kalitini bir marta kiritadi.
-const HARDCODED_GEMINI_KEY = ''; // <-- shu yerga o'z kalitingizni qo'shtirnoq ichiga yozing
+const HARDCODED_GEMINI_KEY = '';
 
 function getInitialApiKey() {
 	if (HARDCODED_GEMINI_KEY) return HARDCODED_GEMINI_KEY;
@@ -271,10 +250,6 @@ const EMPTY_FORM = {
 	poster: '',
 	youtubeUrl: '',
 };
-
-/* ---------------------------------------------------------
-   Small helpers
---------------------------------------------------------- */
 
 function isValidEmail(value) {
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -304,35 +279,13 @@ function getYouTubeId(url) {
 	return null;
 }
 
-// YouTube har bir video uchun standart, doim mavjud bo'lgan thumbnail
-// (kichik surat) manzilini beradi — xuddi YouTube'da videoni bosishdan
-// oldin ko'rinadigan surat kabi. Bu tasodifiy internet-rasm emas, balki
-// aynan shu videoning YouTube'dagi rasmiy surati.
 function getYouTubeThumbnail(youtubeId) {
 	if (!youtubeId) return null;
 	return `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
 }
 
 /* ---------------------------------------------------------
-   AI: film tavsifini avtomatik yozib berish
-
-   Bu funksiya to'g'ridan-to'g'ri brauzerdan Google Gemini API'ga
-   so'rov yuboradi. Bu — Google Gemini'ning BEPUL tarifi (kredit karta
-   shart emas). Kalitni https://aistudio.google.com/apikey dan olish
-   mumkin — u faqat shu qurilmaning localStorage'ida saqlanadi, hech
-   qayerga yuborilmaydi.
-
-   DIQQAT: bu — soddalashtirilgan demo yondashuv. Haqiqiy production
-   loyihada API kalitini brauzerda saqlash xavfsiz emas — bunday
-   so'rovlar odatda o'z backendingiz orqali yuborilishi kerak.
---------------------------------------------------------- */
-/* ---------------------------------------------------------
-   Gemini API bilan umumiy aloqa funksiyasi
-
-   Google Gemini'ning BEPUL tarifidan foydalanamiz (kredit karta
-   shart emas). API kalitni https://aistudio.google.com/apikey
-   sahifasidan olish mumkin. So'rov to'g'ridan-to'g'ri brauzerdan
-   Google serveriga yuboriladi.
+   Gemini API call (Fixed 404 Error)
 --------------------------------------------------------- */
 async function callGemini({ systemPrompt, contents, apiKey, maxOutputTokens = 300 }) {
 	const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent`, {
@@ -387,15 +340,6 @@ Qoidalar:
 	});
 }
 
-/* ---------------------------------------------------------
-   AI: qidiruvda topilmagan filmni to'liq ma'lumot bilan yaratish
-
-   Foydalanuvchi qidiruv qatoriga film nomini yozadi, lekin ro'yxatda
-   topilmasa, AI o'sha nomga qarab janr, yil, davomiylik, reyting va
-   qisqacha tavsifni o'zi taxmin qilib, JSON ko'rinishida qaytaradi.
-   Bu ma'lumotlar tekshirilib (validatsiya), keyin filmlar ro'yxatiga
-   qo'shiladi.
---------------------------------------------------------- */
 async function generateMovieWithAI({ title, apiKey }) {
 	const genreList = ADMIN_GENRES.join(', ');
 	const prompt = `Sen kinolar bo'yicha bilimdon yordamchisan. Foydalanuvchi "${title}" nomli filmni qidirmoqda, lekin katalogda topilmadi. Shu film haqida ma'lumot ber (agar bu haqiqiy, tanish film bo'lsa — haqiqiy ma'lumotlarni ishlat; agar tanimasang yoki noaniq bo'lsa — mantiqiy, ishonchli taxmin qil).
@@ -416,7 +360,6 @@ Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki m
 		maxOutputTokens: 300,
 	});
 
-	// AI ba'zan JSON'ni ```json ... ``` bilan o'rab yuborishi mumkin — tozalaymiz
 	const cleaned = raw
 		.replace(/^```(json)?/i, '')
 		.replace(/```$/, '')
@@ -438,13 +381,6 @@ Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki m
 	return { title, genre, year, duration, rating, blurb };
 }
 
-/* ---------------------------------------------------------
-   AI: chatbot — filmlar haqida savol-javob va tavsiya
-
-   Chatbot joriy katalogdagi filmlar ro'yxatini (nom, janr, yil, reyting)
-   kontekst sifatida oladi, shuning uchun faqat mavjud filmlar haqida
-   aniq javob bera oladi va real tavsiyalar beradi.
---------------------------------------------------------- */
 async function sendChatMessage({ history, movies, apiKey }) {
 	const catalogText = movies.map(m => `- ${m.title} (${m.genre}, ${m.year}, reyting ${m.rating})`).join('\n');
 
@@ -472,10 +408,6 @@ ${catalogText}
 
 	return response;
 }
-
-/* ---------------------------------------------------------
-   Chatbot widget — pastki burchakdagi suzuvchi chat oynasi
---------------------------------------------------------- */
 
 function ChatWidget({ movies, apiKey, onSaveApiKey, onOpenMovie }) {
 	const [open, setOpen] = useState(false);
@@ -651,10 +583,6 @@ function Sprockets({ count = 14 }) {
 	);
 }
 
-/* ---------------------------------------------------------
-   Gate screen — asks for email before entry
---------------------------------------------------------- */
-
 function GateScreen({ onEnter }) {
 	const [value, setValue] = useState('');
 	const [error, setError] = useState('');
@@ -723,10 +651,6 @@ function GateScreen({ onEnter }) {
 		</div>
 	);
 }
-
-/* ---------------------------------------------------------
-   Movie ticket card
---------------------------------------------------------- */
 
 function MovieCard({ movie, isFav, onToggleFav, onOpen, index }) {
 	const theme = getGenreTheme(movie.genre);
@@ -805,17 +729,11 @@ function MovieCard({ movie, isFav, onToggleFav, onOpen, index }) {
 	);
 }
 
-/* ---------------------------------------------------------
-   Modal
---------------------------------------------------------- */
-
 function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
 	const theme = getGenreTheme(movie.genre);
 	const [imgError, setImgError] = useState(false);
 	const [playing, setPlaying] = useState(false);
 	const youtubeId = getYouTubeId(movie.youtubeUrl);
-	// Agar mahsulotda o'z posteri bo'lmasa, YouTube'ning shu video uchun
-	// avtomatik beradigan asl thumbnail'idan foydalanamiz.
 	const posterSrc = movie.poster || getYouTubeThumbnail(youtubeId);
 	const hasPoster = Boolean(posterSrc) && !imgError;
 
@@ -925,10 +843,6 @@ function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
 	);
 }
 
-/* ---------------------------------------------------------
-   Admin login
---------------------------------------------------------- */
-
 function AdminLogin({ onClose, onSuccess }) {
 	const [username, setUsername] = useState('');
 	const [password, setPassword] = useState('');
@@ -1028,10 +942,6 @@ function AdminLogin({ onClose, onSuccess }) {
 		</div>
 	);
 }
-
-/* ---------------------------------------------------------
-   Admin panel
---------------------------------------------------------- */
 
 function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 	const [form, setForm] = useState(EMPTY_FORM);
@@ -1339,10 +1249,6 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 	);
 }
 
-/* ---------------------------------------------------------
-   Main app
---------------------------------------------------------- */
-
 export default function KinoBot() {
 	const [email, setEmail] = useState(() => {
 		try {
@@ -1368,8 +1274,6 @@ export default function KinoBot() {
 	const [showAdminLogin, setShowAdminLogin] = useState(false);
 	const [isAdmin, setIsAdmin] = useState(false);
 
-	// AI orqali qidiruvda topilmagan filmni qo'shish uchun holat.
-	// Admin panelda saqlangan API kalit shu yerda ham qayta ishlatiladi.
 	const [apiKey, setApiKey] = useState(getInitialApiKey);
 	const [apiKeyDraft, setApiKeyDraft] = useState('');
 	const [aiSearchLoading, setAiSearchLoading] = useState(false);
