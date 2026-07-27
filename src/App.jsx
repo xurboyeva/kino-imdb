@@ -233,7 +233,11 @@ const ADMIN_PASSWORD = 'xurboyeva_.010';
 
 const EMAIL_STORAGE_KEY = 'kinobot_email';
 const AI_KEY_STORAGE_KEY = 'kinobot_gemini_key';
-const AI_MODEL = 'gemini-2.5-flash';
+// Google Gemini modellarni tez-tez o'zgartirib/eskirtirib turadi. Agar birinchi
+// model ishlamay qolsa (masalan, "no longer available" xatosi), quyidagi
+// ro'yxatdagi keyingi modellar avtomatik sinab ko'riladi — shunda kod har
+// safar qo'lda tuzatilmasdan ham ishlashda davom etadi.
+const AI_MODEL_FALLBACKS = ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 
 // ===========================================================
 // SIZNING BEPUL GEMINI API KALITINGIZ
@@ -335,60 +339,69 @@ function getYouTubeThumbnail(youtubeId) {
    Google serveriga yuboriladi.
 --------------------------------------------------------- */
 async function callGemini({ systemPrompt, contents, apiKey, maxOutputTokens = 300 }) {
-	const url = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent?key=${encodeURIComponent(
-		apiKey,
-	)}`;
+	let lastError;
 
-	let response;
-	try {
-		response = await fetch(url, {
-			method: 'POST',
-			headers: {
-				'content-type': 'application/json',
-			},
-			body: JSON.stringify({
-				systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
-				contents,
-				generationConfig: { maxOutputTokens, temperature: 0.8 },
-			}),
-		});
-	} catch (networkErr) {
-		throw new Error("Internetga ulanishda muammo bo'ldi, qayta urinib ko'ring", { cause: networkErr });
-	}
+	for (const model of AI_MODEL_FALLBACKS) {
+		const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
+			apiKey,
+		)}`;
 
-	if (!response.ok) {
-		// Google xato bo'lganda JSON tanasida aniq sababni ham qaytaradi —
-		// shuni ko'rsatsak, foydalanuvchi muammoni tezroq tushunadi
-		// (masalan: "API key not valid" yoki "model is not found").
-		let detail = '';
+		let response;
 		try {
-			const errData = await response.json();
-			detail = errData?.error?.message || '';
-		} catch {
-			/* javob JSON bo'lmasa, e'tiborsiz qoldiramiz */
+			response = await fetch(url, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+				},
+				body: JSON.stringify({
+					systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
+					contents,
+					generationConfig: { maxOutputTokens, temperature: 0.8 },
+				}),
+			});
+		} catch (networkErr) {
+			throw new Error("Internetga ulanishda muammo bo'ldi, qayta urinib ko'ring", { cause: networkErr });
 		}
 
-		if (response.status === 400 || response.status === 401 || response.status === 403) {
-			throw new Error(detail ? `API kalit muammosi: ${detail}` : "API kalit noto'g'ri yoki yaroqsiz");
+		if (!response.ok) {
+			// Google xato bo'lganda JSON tanasida aniq sababni ham qaytaradi —
+			// shuni ko'rsatsak, foydalanuvchi muammoni tezroq tushunadi
+			// (masalan: "API key not valid" yoki "model is not found").
+			let detail = '';
+			try {
+				const errData = await response.json();
+				detail = errData?.error?.message || '';
+			} catch {
+				/* javob JSON bo'lmasa, e'tiborsiz qoldiramiz */
+			}
+
+			if (response.status === 400 || response.status === 401 || response.status === 403) {
+				throw new Error(detail ? `API kalit muammosi: ${detail}` : "API kalit noto'g'ri yoki yaroqsiz");
+			}
+			if (response.status === 404) {
+				// Bu model mavjud emas/eskirgan — ro'yxatdagi keyingi modelni sinaymiz
+				lastError = new Error(
+					detail ? `Model topilmadi: ${detail}` : "Model topilmadi — API kalitingiz turi mos kelmayotgan bo'lishi mumkin",
+				);
+				continue;
+			}
+			if (response.status === 429) {
+				throw new Error("Bepul limitga yetdingiz, biroz kuting va qayta urinib ko'ring");
+			}
+			throw new Error(detail || `So'rov muvaffaqiyatsiz tugadi (${response.status})`);
 		}
-		if (response.status === 404) {
-			throw new Error(
-				detail ? `Model topilmadi: ${detail}` : "Model topilmadi — API kalitingiz turi mos kelmayotgan bo'lishi mumkin",
-			);
-		}
-		if (response.status === 429) {
-			throw new Error("Bepul limitga yetdingiz, biroz kuting va qayta urinib ko'ring");
-		}
-		throw new Error(detail || `So'rov muvaffaqiyatsiz tugadi (${response.status})`);
+
+		const data = await response.json();
+		const text = data.candidates?.[0]?.content?.parts
+			?.map(p => p.text || '')
+			.join('')
+			?.trim();
+		if (!text) throw new Error('AI javob qaytarmadi');
+		return text;
 	}
 
-	const data = await response.json();
-	const text = data.candidates?.[0]?.content?.parts
-		?.map(p => p.text || '')
-		.join('')
-		?.trim();
-	if (!text) throw new Error('AI javob qaytarmadi');
-	return text;
+	// Ro'yxatdagi barcha modellar "topilmadi" xatosini qaytardi
+	throw lastError || new Error('Hech qanday model topilmadi');
 }
 
 async function generateBlurbWithAI({ title, genre, year, apiKey }) {
