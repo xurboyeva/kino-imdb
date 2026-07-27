@@ -816,7 +816,7 @@ function MovieCard({ movie, isFav, onToggleFav, onOpen, index }) {
 				<span className='kb-ticket-genre-tag'>{movie.genre}</span>
 				{movie.rating >= 8.6 && <span className='kb-ticket-stamp'>TOP</span>}
 				{movie.youtubeUrl && (
-					<span className='kb-ticket-play'>
+					<span className='kb-ticket-play' style={{ background: theme.accent, color: theme.a }}>
 						<Play size={16} fill='currentColor' />
 					</span>
 				)}
@@ -922,7 +922,13 @@ function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
 								onError={() => setImgError(true)}
 							/>
 							{youtubeId && (
-								<span className='kb-modal-play-overlay'>
+								<span
+									className='kb-modal-play-overlay'
+									style={{
+										background: theme.accent,
+										color: theme.a,
+										boxShadow: `0 0 0 6px ${theme.a}66`,
+									}}>
 									<Play size={26} fill='currentColor' />
 								</span>
 							)}
