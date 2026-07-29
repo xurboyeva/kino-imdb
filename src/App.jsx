@@ -18,12 +18,7 @@ import {
 	Trash2,
 	Plus,
 	ShieldCheck,
-	Sparkles,
-	Loader2,
-	KeyRound,
-	MessageCircle,
-	Send,
-	Bot,
+	ExternalLink,
 } from 'lucide-react';
 
 /* ---------------------------------------------------------
@@ -45,16 +40,6 @@ const GENRE_THEME = {
 	Triller: { a: '#22132A', b: '#4C2352', accent: '#D06AD9' },
 	Tarixiy: { a: '#28230F', b: '#5E5029', accent: '#E2CC7F' },
 };
-
-// Agar biror filmning "genre" maydoni GENRE_THEME ro'yxatidagi janrlardan
-// birortasiga aniq mos kelmasa (masalan, imlo xatosi tufayli), shu standart
-// rangdan foydalaniladi — shunda sayt "Cannot read properties of undefined"
-// xatosi bilan qulab tushmaydi.
-const DEFAULT_THEME = { a: '#241C1C', b: '#4A3B3B', accent: '#C9A227' };
-
-function getGenreTheme(genre) {
-	return GENRE_THEME[genre] || DEFAULT_THEME;
-}
 
 const MOVIES = [
 	{
@@ -199,27 +184,65 @@ const MOVIES = [
 		blurb: "Tavsif tez orada to'ldiriladi.",
 		youtubeUrl: 'https://youtu.be/oatcw4p6Wuw',
 	},
-
 	{
 		id: 14,
-		title: 'Sahro Jangchisi',
-		year: 2025,
-		genre: 'Tarixiy',
-		duration: 127,
-		rating: 7.4,
-		blurb: "Tavsif tez orada to'ldiriladi.",
-		youtubeUrl: 'https://youtu.be/GHgJleDjV68?si=0Gsal05r3tfwIDsN',
+		title: 'The Godfather',
+		year: 1972,
+		genre: 'Jinoiy',
+		duration: 175,
+		rating: 9.2,
+		blurb:
+			"Nyu-Yorkdagi qudratli jinoiy oila boshlig'i vorisligini yosh o'g'liga topshirar ekan, sodiqlik va hokimiyatning haqiqiy narxi ochiladi.",
+		youtubeUrl: 'https://www.youtube.com/watch?v=rqGJyUB1Q3s',
+		trailerOnly: true,
 	},
-
 	{
 		id: 15,
-		title: 'Sniper',
+		title: 'Titanic',
+		year: 1997,
+		genre: 'Drama',
+		duration: 195,
+		rating: 7.9,
+		blurb:
+			"Cho'kmas deb atalgan kemada boy qiz va kambag'al yigit o'rtasida boshlangan sevgi taqdirning eng og'ir sinoviga duch keladi.",
+		youtubeUrl: 'https://www.youtube.com/watch?v=WZni5wBjo5A',
+		trailerOnly: true,
+	},
+	{
+		id: 16,
+		title: 'Gladiator',
+		year: 2000,
+		genre: 'Tarixiy',
+		duration: 155,
+		rating: 8.5,
+		blurb:
+			'Xiyonatga uchragan Rim generali qullikka va gladiatorlikka tushib qolib, oilasi qasosini olish uchun arenaga qaytadi.',
+		youtubeUrl: 'https://www.youtube.com/watch?v=uvbavW31adA',
+		trailerOnly: true,
+	},
+	{
+		id: 17,
+		title: 'Get Out',
+		year: 2017,
+		genre: 'Triller',
+		duration: 104,
+		rating: 7.7,
+		blurb:
+			"Yigit qiz do'stining oilasi bilan tanishuvga boradi-yu, tashrifning tinch ko'rinishi ortida dahshatli sir yashiringanini bilib qoladi.",
+		youtubeUrl: 'https://www.youtube.com/watch?v=sRfnevzM9kQ',
+		trailerOnly: true,
+	},
+	{
+		id: 18,
+		title: 'Your Name',
 		year: 2016,
-		genre: 'Fantastika',
-		duration: 99,
-		rating: 8.3,
-		blurb: "Tavsif tez orada to'ldiriladi.",
-		youtubeUrl: 'https://youtu.be/wwKNxOG9R5s?si=BazzWbt2sPCnKyid',
+		genre: 'Animatsiya',
+		duration: 106,
+		rating: 8.4,
+		blurb:
+			'Ikki notanish yosh — qishloqdagi qiz va shahardagi yigit — sirli tarzda tanalarini almashtirib, bir-birini izlashni boshlaydi.',
+		youtubeUrl: 'https://www.youtube.com/watch?v=e4dZhQaTJMk',
+		trailerOnly: true,
 	},
 ];
 
@@ -231,38 +254,6 @@ const ADMIN_USERNAME = 'xurboyeva.01@gmail.com';
 const ADMIN_PASSWORD = 'xurboyeva_.010';
 
 const EMAIL_STORAGE_KEY = 'kinobot_email';
-const AI_KEY_STORAGE_KEY = 'kinobot_gemini_key';
-// Google Gemini modellarni tez-tez o'zgartirib/eskirtirib turadi. Agar birinchi
-// model ishlamay qolsa (masalan, "no longer available" xatosi), quyidagi
-// ro'yxatdagi keyingi modellar avtomatik sinab ko'riladi — shunda kod har
-// safar qo'lda tuzatilmasdan ham ishlashda davom etadi.
-const AI_MODEL_FALLBACKS = ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
-
-// ===========================================================
-// SIZNING BEPUL GEMINI API KALITINGIZ
-// ===========================================================
-// Agar shu qatorga o'z kalitingizni yozib qo'ysangiz, saytga kiruvchi
-// hech kimdan kalit so'ralmaydi — AI funksiyalari (chat, tavsif yozish,
-// qidiruvda qo'shish) darhol, hech qanday sozlashsiz ishlaydi.
-//
-// Kalitni https://aistudio.google.com/apikey dan bepul olasiz.
-//
-// DIQQAT: bu kalit sayt kodida OCHIQ turadi — har qanday tashrifchi
-// brauzer orqali (masalan, "Ko'rish manbasi" yoki DevTools) uni ko'ra
-// oladi va sizning bepul limitingizdan foydalanishi mumkin. Bu —
-// shaxsiy/portfolio loyihalar uchun odatiy, lekin xavfsiz emas.
-// Agar buni xohlamasangiz, shu qatorni bo'sh ('') qoldiring — u holda
-// har bir tashrifchi (yoki admin) o'z kalitini bir marta kiritadi.
-const HARDCODED_GEMINI_KEY = ''; // <-- shu yerga o'z kalitingizni qo'shtirnoq ichiga yozing
-
-function getInitialApiKey() {
-	if (HARDCODED_GEMINI_KEY) return HARDCODED_GEMINI_KEY;
-	try {
-		return localStorage.getItem(AI_KEY_STORAGE_KEY) || '';
-	} catch {
-		return '';
-	}
-}
 
 const EMPTY_FORM = {
 	title: '',
@@ -305,376 +296,6 @@ function getYouTubeId(url) {
 		return null;
 	}
 	return null;
-}
-
-// YouTube har bir video uchun standart, doim mavjud bo'lgan thumbnail
-// (kichik surat) manzilini beradi — xuddi YouTube'da videoni bosishdan
-// oldin ko'rinadigan surat kabi. Bu tasodifiy internet-rasm emas, balki
-// aynan shu videoning YouTube'dagi rasmiy surati.
-function getYouTubeThumbnail(youtubeId) {
-	if (!youtubeId) return null;
-	return `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
-}
-
-/* ---------------------------------------------------------
-   AI: film tavsifini avtomatik yozib berish
-
-   Bu funksiya to'g'ridan-to'g'ri brauzerdan Google Gemini API'ga
-   so'rov yuboradi. Bu — Google Gemini'ning BEPUL tarifi (kredit karta
-   shart emas). Kalitni https://aistudio.google.com/apikey dan olish
-   mumkin — u faqat shu qurilmaning localStorage'ida saqlanadi, hech
-   qayerga yuborilmaydi.
-
-   DIQQAT: bu — soddalashtirilgan demo yondashuv. Haqiqiy production
-   loyihada API kalitini brauzerda saqlash xavfsiz emas — bunday
-   so'rovlar odatda o'z backendingiz orqali yuborilishi kerak.
---------------------------------------------------------- */
-/* ---------------------------------------------------------
-   Gemini API bilan umumiy aloqa funksiyasi
-
-   Google Gemini'ning BEPUL tarifidan foydalanamiz (kredit karta
-   shart emas). API kalitni https://aistudio.google.com/apikey
-   sahifasidan olish mumkin. So'rov to'g'ridan-to'g'ri brauzerdan
-   Google serveriga yuboriladi.
---------------------------------------------------------- */
-async function callGemini({ systemPrompt, contents, apiKey, maxOutputTokens = 300 }) {
-	let lastError;
-
-	for (const model of AI_MODEL_FALLBACKS) {
-		const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
-			apiKey,
-		)}`;
-
-		let response;
-		try {
-			response = await fetch(url, {
-				method: 'POST',
-				headers: {
-					'content-type': 'application/json',
-				},
-				body: JSON.stringify({
-					systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
-					contents,
-					generationConfig: { maxOutputTokens, temperature: 0.8 },
-				}),
-			});
-		} catch (networkErr) {
-			throw new Error("Internetga ulanishda muammo bo'ldi, qayta urinib ko'ring", { cause: networkErr });
-		}
-
-		if (!response.ok) {
-			// Google xato bo'lganda JSON tanasida aniq sababni ham qaytaradi —
-			// shuni ko'rsatsak, foydalanuvchi muammoni tezroq tushunadi
-			// (masalan: "API key not valid" yoki "model is not found").
-			let detail = '';
-			try {
-				const errData = await response.json();
-				detail = errData?.error?.message || '';
-			} catch {
-				/* javob JSON bo'lmasa, e'tiborsiz qoldiramiz */
-			}
-
-			if (response.status === 400 || response.status === 401 || response.status === 403) {
-				throw new Error(detail ? `API kalit muammosi: ${detail}` : "API kalit noto'g'ri yoki yaroqsiz");
-			}
-			if (response.status === 404) {
-				// Bu model mavjud emas/eskirgan — ro'yxatdagi keyingi modelni sinaymiz
-				lastError = new Error(
-					detail ? `Model topilmadi: ${detail}` : "Model topilmadi — API kalitingiz turi mos kelmayotgan bo'lishi mumkin",
-				);
-				continue;
-			}
-			if (response.status === 429) {
-				throw new Error("Bepul limitga yetdingiz, biroz kuting va qayta urinib ko'ring");
-			}
-			throw new Error(detail || `So'rov muvaffaqiyatsiz tugadi (${response.status})`);
-		}
-
-		const data = await response.json();
-		const text = data.candidates?.[0]?.content?.parts
-			?.map(p => p.text || '')
-			.join('')
-			?.trim();
-		if (!text) throw new Error('AI javob qaytarmadi');
-		return text;
-	}
-
-	// Ro'yxatdagi barcha modellar "topilmadi" xatosini qaytardi
-	throw lastError || new Error('Hech qanday model topilmadi');
-}
-
-async function generateBlurbWithAI({ title, genre, year, apiKey }) {
-	const prompt = `Sen professional o'zbek tilida kino-tavsif yozuvchisisan. Quyidagi film uchun bitta, tabiiy, jozibali va 1-2 gapdan iborat qisqacha tavsif (blurb) yoz.
-
-Film nomi: ${title}
-Janr: ${genre}
-Yili: ${year || "noma'lum"}
-
-Qoidalar:
-- Faqat o'zbek tilida yoz.
-- Faqat tavsif matnini qaytar, boshqa hech narsa yozma (izoh, sarlavha, tirnoq belgisi shart emas).
-- Filmning syujetini his-tuyg'u bilan, lekin oshirib yubormasdan tasvirla.
-- Taxminan 15-30 so'zdan iborat bo'lsin.`;
-
-	return callGemini({
-		contents: [{ role: 'user', parts: [{ text: prompt }] }],
-		apiKey,
-		maxOutputTokens: 200,
-	});
-}
-
-/* ---------------------------------------------------------
-   AI: qidiruvda topilmagan filmni to'liq ma'lumot bilan yaratish
-
-   Foydalanuvchi qidiruv qatoriga film nomini yozadi, lekin ro'yxatda
-   topilmasa, AI o'sha nomga qarab janr, yil, davomiylik, reyting va
-   qisqacha tavsifni o'zi taxmin qilib, JSON ko'rinishida qaytaradi.
-   Bu ma'lumotlar tekshirilib (validatsiya), keyin filmlar ro'yxatiga
-   qo'shiladi.
---------------------------------------------------------- */
-async function generateMovieWithAI({ title, apiKey }) {
-	const genreList = ADMIN_GENRES.join(', ');
-	const prompt = `Sen kinolar bo'yicha bilimdon yordamchisan. Foydalanuvchi "${title}" nomli filmni qidirmoqda, lekin katalogda topilmadi. Shu film haqida ma'lumot ber (agar bu haqiqiy, tanish film bo'lsa — haqiqiy ma'lumotlarni ishlat; agar tanimasang yoki noaniq bo'lsa — mantiqiy, ishonchli taxmin qil).
-
-Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki markdown belgisi qo'shma:
-
-{
-  "genre": "<faqat shu ro'yxatdan bittasi: ${genreList}>",
-  "year": <son, chiqarilgan yili>,
-  "duration": <son, daqiqada davomiyligi>,
-  "rating": <son, 0 dan 10 gacha, bitta kasr xonasi bilan>,
-  "blurb": "<o'zbek tilida, 15-30 so'zdan iborat qisqacha tavsif>"
-}`;
-
-	const raw = await callGemini({
-		contents: [{ role: 'user', parts: [{ text: prompt }] }],
-		apiKey,
-		maxOutputTokens: 300,
-	});
-
-	// AI ba'zan JSON'ni ```json ... ``` bilan o'rab yuborishi mumkin — tozalaymiz
-	const cleaned = raw
-		.replace(/^```(json)?/i, '')
-		.replace(/```$/, '')
-		.trim();
-
-	let parsed;
-	try {
-		parsed = JSON.parse(cleaned);
-	} catch {
-		throw new Error("AI javobini o'qib bo'lmadi, qayta urinib ko'ring");
-	}
-
-	const genre = ADMIN_GENRES.includes(parsed.genre) ? parsed.genre : ADMIN_GENRES[0];
-	const year = Number(parsed.year) || new Date().getFullYear();
-	const duration = Number(parsed.duration) > 0 ? Number(parsed.duration) : 100;
-	const rating = Math.min(10, Math.max(0, Number(parsed.rating) || 7));
-	const blurb = typeof parsed.blurb === 'string' && parsed.blurb.trim() ? parsed.blurb.trim() : "Tavsif tez orada to'ldiriladi.";
-
-	return { title, genre, year, duration, rating, blurb };
-}
-
-/* ---------------------------------------------------------
-   AI: chatbot — filmlar haqida savol-javob va tavsiya
-
-   Chatbot joriy katalogdagi filmlar ro'yxatini (nom, janr, yil, reyting)
-   kontekst sifatida oladi, shuning uchun faqat mavjud filmlar haqida
-   aniq javob bera oladi va real tavsiyalar beradi.
---------------------------------------------------------- */
-async function sendChatMessage({ history, movies, apiKey }) {
-	const catalogText = movies.map(m => `- ${m.title} (${m.genre}, ${m.year}, reyting ${m.rating})`).join('\n');
-
-	const systemPrompt = `Sen "KinoBot" nomli onlayn kinoteatr saytining sun'iy intellekt yordamchisisan. Foydalanuvchilarga filmlar haqida savollarga javob berasan va janr/kayfiyatga qarab tavsiyalar berasan.
-
-Qat'iy qoidalar:
-- Faqat o'zbek tilida javob ber.
-- Javoblaring qisqa va tabiiy bo'lsin (odatda 1-4 gap), keraksiz uzun matn yozma.
-- Tavsiya berayotganda FAQAT quyidagi katalogdagi filmlardan tanla — bu ro'yxatdan tashqari film tavsiya qilma, chunki saytda ular yo'q:
-
-${catalogText}
-
-- Agar so'ralgan narsa katalogda yo'q bo'lsa, buni ochiq ayt va eng yaqin mos keladigan variantni taklif qil.
-- Sen sotib olish, chipta band qilish kabi amallarni bajara olmaysan — faqat maslahat va ma'lumot berasan.`;
-
-	const response = await callGemini({
-		systemPrompt,
-		contents: history.map(m => ({
-			role: m.role === 'assistant' ? 'model' : 'user',
-			parts: [{ text: m.content }],
-		})),
-		apiKey,
-		maxOutputTokens: 400,
-	});
-
-	return response;
-}
-
-/* ---------------------------------------------------------
-   Chatbot widget — pastki burchakdagi suzuvchi chat oynasi
---------------------------------------------------------- */
-
-function ChatWidget({ movies, apiKey, onSaveApiKey, onOpenMovie }) {
-	const [open, setOpen] = useState(false);
-	const [messages, setMessages] = useState([]);
-	const [input, setInput] = useState('');
-	const [keyDraft, setKeyDraft] = useState('');
-	const [loading, setLoading] = useState(false);
-	const [error, setError] = useState('');
-	const scrollRef = useRef(null);
-
-	useEffect(() => {
-		if (scrollRef.current) {
-			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-		}
-	}, [messages, loading, open]);
-
-	function matchedMovies(text) {
-		const lower = text.toLowerCase();
-		return movies.filter(m => lower.includes(m.title.toLowerCase())).slice(0, 3);
-	}
-
-	async function handleSend() {
-		const text = input.trim();
-		if (!text || loading) return;
-		if (!apiKey) {
-			setError('Avval Gemini API kalitingizni kiriting');
-			return;
-		}
-		setError('');
-		const nextHistory = [...messages, { role: 'user', content: text }];
-		setMessages(nextHistory);
-		setInput('');
-		setLoading(true);
-		try {
-			const reply = await sendChatMessage({ history: nextHistory, movies, apiKey });
-			setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
-		} catch (err) {
-			setError(err.message || "Javob olib bo'lmadi");
-			setMessages(prev => prev.slice(0, -1));
-			setInput(text);
-		} finally {
-			setLoading(false);
-		}
-	}
-
-	function handleSaveKey() {
-		const trimmed = keyDraft.trim();
-		if (!trimmed) return;
-		onSaveApiKey(trimmed);
-		setKeyDraft('');
-		setError('');
-	}
-
-	return (
-		<>
-			<button
-				type='button'
-				className={`kb-chat-fab ${open ? 'kb-chat-fab--open' : ''}`}
-				onClick={() => setOpen(v => !v)}
-				aria-label={open ? 'Chatni yopish' : 'AI yordamchi bilan suhbat'}>
-				{open ? <X size={22} /> : <MessageCircle size={22} />}
-			</button>
-
-			{open && (
-				<div className='kb-chat-panel' role='dialog' aria-label='AI yordamchi'>
-					<div className='kb-chat-head'>
-						<span className='kb-chat-head-icon'>
-							<Bot size={16} />
-						</span>
-						<div>
-							<p className='kb-chat-head-title'>KinoBot AI</p>
-							<p className='kb-chat-head-sub'>Film tanlashda yordam beraman</p>
-						</div>
-					</div>
-
-					<div className='kb-chat-body' ref={scrollRef}>
-						{messages.length === 0 && (
-							<div className='kb-chat-intro'>
-								<Sparkles size={18} />
-								<p>Salom! Menga kayfiyatingiz yoki qiziqqan janringizni ayting — mos filmni katalogdan topib beraman.</p>
-							</div>
-						)}
-						{messages.map((m, i) => (
-							<div key={i} className={`kb-chat-msg kb-chat-msg--${m.role}`}>
-								<p>{m.content}</p>
-								{m.role === 'assistant' &&
-									matchedMovies(m.content).map(mv => (
-										<button
-											key={mv.id}
-											type='button'
-											className='kb-chat-movie-chip'
-											onClick={() => {
-												onOpenMovie(mv);
-												setOpen(false);
-											}}>
-											<Film size={12} />
-											{mv.title}
-										</button>
-									))}
-							</div>
-						))}
-						{loading && (
-							<div className='kb-chat-msg kb-chat-msg--assistant kb-chat-typing'>
-								<Loader2 size={14} className='kb-spin' />
-								Yozmoqda...
-							</div>
-						)}
-					</div>
-
-					{!apiKey ? (
-						<div className='kb-chat-key-wrap'>
-							<div className='kb-chat-key-form'>
-								<KeyRound size={14} />
-								<input
-									type='password'
-									className='kb-input kb-ai-key-input'
-									placeholder='Gemini API kalitingiz (AIzaSy...)'
-									value={keyDraft}
-									onChange={e => setKeyDraft(e.target.value)}
-									onKeyDown={e => {
-										if (e.key === 'Enter') handleSaveKey();
-									}}
-								/>
-								<button type='button' className='kb-btn-secondary kb-ai-key-save' onClick={handleSaveKey}>
-									Saqlash
-								</button>
-							</div>
-							<p className='kb-ai-key-hint kb-chat-key-hint'>
-								Bepul kalitni{' '}
-								<a href='https://aistudio.google.com/apikey' target='_blank' rel='noreferrer'>
-									aistudio.google.com/apikey
-								</a>{' '}
-								dan oling.
-							</p>
-						</div>
-					) : (
-						<div className='kb-chat-input-row'>
-							<input
-								type='text'
-								className='kb-input kb-chat-input'
-								placeholder='Savolingizni yozing...'
-								value={input}
-								onChange={e => setInput(e.target.value)}
-								onKeyDown={e => {
-									if (e.key === 'Enter') handleSend();
-								}}
-								disabled={loading}
-							/>
-							<button
-								type='button'
-								className='kb-chat-send'
-								onClick={handleSend}
-								disabled={loading || !input.trim()}
-								aria-label='Yuborish'>
-								<Send size={16} />
-							</button>
-						</div>
-					)}
-					{error && <p className='kb-error-text kb-chat-error'>{error}</p>}
-				</div>
-			)}
-		</>
-	);
 }
 
 function Sprockets({ count = 14 }) {
@@ -765,11 +386,9 @@ function GateScreen({ onEnter }) {
 --------------------------------------------------------- */
 
 function MovieCard({ movie, isFav, onToggleFav, onOpen, index }) {
-	const theme = getGenreTheme(movie.genre);
+	const theme = GENRE_THEME[movie.genre];
 	const [imgError, setImgError] = useState(false);
-	const youtubeId = getYouTubeId(movie.youtubeUrl);
-	const posterSrc = movie.poster || getYouTubeThumbnail(youtubeId);
-	const hasPoster = Boolean(posterSrc) && !imgError;
+	const hasPoster = Boolean(movie.poster) && !imgError;
 	return (
 		<article
 			className='kb-ticket'
@@ -786,7 +405,7 @@ function MovieCard({ movie, isFav, onToggleFav, onOpen, index }) {
 				aria-label={`${movie.title} haqida batafsil`}>
 				{hasPoster ? (
 					<img
-						src={posterSrc}
+						src={movie.poster}
 						alt={`${movie.title} plakati`}
 						className='kb-ticket-poster-img'
 						onError={() => setImgError(true)}
@@ -846,14 +465,11 @@ function MovieCard({ movie, isFav, onToggleFav, onOpen, index }) {
 --------------------------------------------------------- */
 
 function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
-	const theme = getGenreTheme(movie.genre);
+	const theme = GENRE_THEME[movie.genre];
 	const [imgError, setImgError] = useState(false);
 	const [playing, setPlaying] = useState(false);
+	const hasPoster = Boolean(movie.poster) && !imgError;
 	const youtubeId = getYouTubeId(movie.youtubeUrl);
-	// Agar mahsulotda o'z posteri bo'lmasa, YouTube'ning shu video uchun
-	// avtomatik beradigan asl thumbnail'idan foydalanamiz.
-	const posterSrc = movie.poster || getYouTubeThumbnail(youtubeId);
-	const hasPoster = Boolean(posterSrc) && !imgError;
 
 	useEffect(() => {
 		function onKey(e) {
@@ -885,29 +501,18 @@ function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
 					{playing && youtubeId ? (
 						<iframe
 							className='kb-modal-video'
-							src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3&fs=1&playsinline=1`}
+							src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0`}
 							title={movie.title}
 							allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
 							allowFullScreen
 						/>
 					) : hasPoster ? (
-						<button
-							type='button'
-							className='kb-modal-thumb-btn'
-							onClick={handleWatchClick}
-							aria-label={`${movie.title} treylerini ko'rish`}>
-							<img
-								src={posterSrc}
-								alt={`${movie.title} plakati`}
-								className='kb-ticket-poster-img'
-								onError={() => setImgError(true)}
-							/>
-							{youtubeId && (
-								<span className='kb-modal-play-overlay'>
-									<Play size={26} fill='currentColor' />
-								</span>
-							)}
-						</button>
+						<img
+							src={movie.poster}
+							alt={`${movie.title} plakati`}
+							className='kb-ticket-poster-img'
+							onError={() => setImgError(true)}
+						/>
 					) : (
 						<Film size={56} strokeWidth={1.2} />
 					)}
@@ -936,6 +541,16 @@ function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
 								<Play size={18} fill='currentColor' />
 								{movie.trailerOnly ? "Treylerni ko'rish" : 'Tomosha qilish'}
 							</button>
+						)}
+						{youtubeId && (
+							<a
+								href={`https://www.youtube.com/watch?v=${youtubeId}`}
+								target='_blank'
+								rel='noopener noreferrer'
+								className='kb-btn-secondary'>
+								<ExternalLink size={18} />
+								YouTube'da ochish
+							</a>
 						)}
 						<button
 							type='button'
@@ -1063,62 +678,6 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 	const [form, setForm] = useState(EMPTY_FORM);
 	const [formError, setFormError] = useState('');
 
-	const [apiKey, setApiKey] = useState(getInitialApiKey);
-	const [apiKeyDraft, setApiKeyDraft] = useState('');
-	const [showKeyField, setShowKeyField] = useState(false);
-	const [aiLoading, setAiLoading] = useState(false);
-	const [aiError, setAiError] = useState('');
-
-	function saveApiKey() {
-		const trimmed = apiKeyDraft.trim();
-		if (!trimmed) return;
-		try {
-			localStorage.setItem(AI_KEY_STORAGE_KEY, trimmed);
-		} catch {
-			/* ignore */
-		}
-		setApiKey(trimmed);
-		setApiKeyDraft('');
-		setShowKeyField(false);
-		setAiError('');
-	}
-
-	function clearApiKey() {
-		try {
-			localStorage.removeItem(AI_KEY_STORAGE_KEY);
-		} catch {
-			/* ignore */
-		}
-		setApiKey('');
-	}
-
-	async function handleGenerateBlurb() {
-		if (!form.title.trim()) {
-			setAiError('Avval film nomini kiriting');
-			return;
-		}
-		if (!apiKey) {
-			setShowKeyField(true);
-			setAiError('Avval Gemini API kalitingizni kiriting');
-			return;
-		}
-		setAiError('');
-		setAiLoading(true);
-		try {
-			const blurb = await generateBlurbWithAI({
-				title: form.title.trim(),
-				genre: form.genre,
-				year: form.year,
-				apiKey,
-			});
-			updateField('blurb', blurb);
-		} catch (err) {
-			setAiError(err.message || "AI tavsif yaratib bo'lmadi");
-		} finally {
-			setAiLoading(false);
-		}
-	}
-
 	function updateField(key, val) {
 		setForm(f => ({ ...f, [key]: val }));
 	}
@@ -1172,52 +731,6 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 
 			<div className='kb-admin-form'>
 				<h3 className='kb-admin-form-title'>Yangi film qo'shish</h3>
-
-				<div className='kb-ai-settings'>
-					{apiKey && !showKeyField ? (
-						<div className='kb-ai-key-status'>
-							<KeyRound size={14} />
-							{HARDCODED_GEMINI_KEY ? (
-								'Gemini API kaliti kodda sozlangan'
-							) : (
-								<>
-									Gemini API kaliti ulangan
-									<button type='button' className='kb-ai-key-change' onClick={() => setShowKeyField(true)}>
-										o'zgartirish
-									</button>
-									<button type='button' className='kb-ai-key-change' onClick={clearApiKey}>
-										o'chirish
-									</button>
-								</>
-							)}
-						</div>
-					) : (
-						<div className='kb-ai-key-form'>
-							<KeyRound size={14} />
-							<input
-								type='password'
-								className='kb-input kb-ai-key-input'
-								placeholder='Gemini API kalitingiz (AIzaSy...)'
-								value={apiKeyDraft}
-								onChange={e => setApiKeyDraft(e.target.value)}
-								onKeyDown={e => {
-									if (e.key === 'Enter') saveApiKey();
-								}}
-							/>
-							<button type='button' className='kb-btn-secondary kb-ai-key-save' onClick={saveApiKey}>
-								Saqlash
-							</button>
-						</div>
-					)}
-					<p className='kb-ai-key-hint'>
-						AI tavsif yozish uchun kerak — bu <strong>bepul</strong> (kredit karta shart emas). Kalitni{' '}
-						<a href='https://aistudio.google.com/apikey' target='_blank' rel='noreferrer'>
-							aistudio.google.com/apikey
-						</a>{' '}
-						dan oling. Faqat shu brauzerda saqlanadi, hech qayerga yuborilmaydi.
-					</p>
-				</div>
-
 				<div className='kb-admin-form-grid'>
 					<div className='kb-admin-field'>
 						<label className='kb-label'>Sarlavha</label>
@@ -1275,20 +788,13 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 					</div>
 				</div>
 				<div className='kb-admin-field'>
-					<div className='kb-admin-field-head'>
-						<label className='kb-label'>Qisqacha tavsif</label>
-						<button type='button' className='kb-ai-generate-btn' onClick={handleGenerateBlurb} disabled={aiLoading}>
-							{aiLoading ? <Loader2 size={14} className='kb-spin' /> : <Sparkles size={14} />}
-							{aiLoading ? 'Yozilmoqda...' : 'AI bilan yozish'}
-						</button>
-					</div>
+					<label className='kb-label'>Qisqacha tavsif</label>
 					<textarea
 						className='kb-input kb-admin-input kb-admin-textarea'
-						placeholder='Film haqida bir-ikki gap — yoki yuqoridagi AI tugmasini bosing'
+						placeholder='Film haqida bir-ikki gap'
 						value={form.blurb}
 						onChange={e => updateField('blurb', e.target.value)}
 					/>
-					{aiError && <p className='kb-error-text'>{aiError}</p>}
 				</div>
 				<div className='kb-admin-field'>
 					<label className='kb-label'>Plakat rasm havolasi (ixtiyoriy)</label>
@@ -1323,16 +829,15 @@ function AdminPanel({ movies, onAdd, onDelete, onLogout }) {
 					<p className='kb-empty-sub'>Hozircha filmlar yo'q.</p>
 				) : (
 					movies.map(m => {
-						const theme = getGenreTheme(m.genre);
-						const rowPoster = m.poster || getYouTubeThumbnail(getYouTubeId(m.youtubeUrl));
+						const theme = GENRE_THEME[m.genre];
 						return (
 							<div key={m.id} className='kb-admin-row'>
 								<span
 									className='kb-admin-row-swatch'
 									style={{ background: `linear-gradient(150deg, ${theme.a}, ${theme.b})`, color: theme.accent }}>
-									{rowPoster ? (
+									{m.poster ? (
 										<img
-											src={rowPoster}
+											src={m.poster}
 											alt=''
 											className='kb-admin-row-thumb'
 											onError={e => {
@@ -1394,13 +899,6 @@ export default function KinoBot() {
 	const [showAdminLogin, setShowAdminLogin] = useState(false);
 	const [isAdmin, setIsAdmin] = useState(false);
 
-	// AI orqali qidiruvda topilmagan filmni qo'shish uchun holat.
-	// Admin panelda saqlangan API kalit shu yerda ham qayta ishlatiladi.
-	const [apiKey, setApiKey] = useState(getInitialApiKey);
-	const [apiKeyDraft, setApiKeyDraft] = useState('');
-	const [aiSearchLoading, setAiSearchLoading] = useState(false);
-	const [aiSearchError, setAiSearchError] = useState('');
-
 	useEffect(() => {
 		if (!toast) return;
 		const t = setTimeout(() => setToast(''), 2200);
@@ -1441,45 +939,6 @@ export default function KinoBot() {
 			return [...prev, { id: nextId, ...newMovie }];
 		});
 		setToast(`"${newMovie.title}" qo'shildi`);
-	}
-
-	function persistApiKey(trimmed) {
-		if (!trimmed) return;
-		try {
-			localStorage.setItem(AI_KEY_STORAGE_KEY, trimmed);
-		} catch {
-			/* ignore */
-		}
-		setApiKey(trimmed);
-	}
-
-	function saveSearchApiKey() {
-		const trimmed = apiKeyDraft.trim();
-		if (!trimmed) return;
-		persistApiKey(trimmed);
-		setApiKeyDraft('');
-		setAiSearchError('');
-	}
-
-	async function handleAiSearchAdd() {
-		const title = query.trim();
-		if (!title) return;
-		if (!apiKey) {
-			setAiSearchError('Avval Gemini API kalitingizni kiriting');
-			return;
-		}
-		setAiSearchError('');
-		setAiSearchLoading(true);
-		try {
-			const movie = await generateMovieWithAI({ title, apiKey });
-			addMovie(movie);
-			setActiveGenre('Barchasi');
-			setShowFavOnly(false);
-		} catch (err) {
-			setAiSearchError(err.message || "Film yaratib bo'lmadi");
-		} finally {
-			setAiSearchLoading(false);
-		}
 	}
 
 	function deleteMovie(id) {
@@ -1598,43 +1057,6 @@ export default function KinoBot() {
 								<Clapperboard size={40} strokeWidth={1.3} />
 								<p className='kb-display kb-empty-title'>Zal bo'sh qoldi</p>
 								<p className='kb-empty-sub'>Qidiruv yoki janrni o'zgartirib ko'ring.</p>
-
-								{query.trim() && (
-									<div className='kb-ai-search-add'>
-										<p className='kb-ai-search-lead'>
-											<Sparkles size={14} />"{query.trim()}" nomli film topilmadi — AI yordamida qo'shib ko'ramizmi?
-										</p>
-
-										{apiKey ? (
-											<button
-												type='button'
-												className='kb-btn-primary kb-ai-search-btn'
-												onClick={handleAiSearchAdd}
-												disabled={aiSearchLoading}>
-												{aiSearchLoading ? <Loader2 size={16} className='kb-spin' /> : <Sparkles size={16} />}
-												{aiSearchLoading ? 'Yaratilmoqda...' : "AI bilan qo'shish"}
-											</button>
-										) : (
-											<div className='kb-ai-key-form kb-ai-search-key-form'>
-												<KeyRound size={14} />
-												<input
-													type='password'
-													className='kb-input kb-ai-key-input'
-													placeholder='Gemini API kalitingiz (AIzaSy...)'
-													value={apiKeyDraft}
-													onChange={e => setApiKeyDraft(e.target.value)}
-													onKeyDown={e => {
-														if (e.key === 'Enter') saveSearchApiKey();
-													}}
-												/>
-												<button type='button' className='kb-btn-secondary kb-ai-key-save' onClick={saveSearchApiKey}>
-													Saqlash
-												</button>
-											</div>
-										)}
-										{aiSearchError && <p className='kb-error-text'>{aiSearchError}</p>}
-									</div>
-								)}
 							</div>
 						) : (
 							filtered.map((m, i) => (
@@ -1681,8 +1103,6 @@ export default function KinoBot() {
 					{toast}
 				</div>
 			)}
-
-			{!isAdmin && <ChatWidget movies={movies} apiKey={apiKey} onSaveApiKey={persistApiKey} onOpenMovie={setSelected} />}
 		</div>
 	);
 }
