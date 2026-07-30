@@ -316,6 +316,34 @@ function getYouTubeThumbnail(youtubeId) {
 	return `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
 }
 
+// YouTube IFrame Player API skriptini bir marta yuklaydi (keyingi
+// chaqiruvlarda qayta yuklamaydi). Bu API orqali videoning holatini
+// (ijro etilyaptimi yoki pauzadami) kuzatib boramiz — maqsad: video
+// pauza/tugagan holatga o'tganda YouTube o'zi chiqaradigan sarlavha,
+// kanal belgisi va "boshqa videolar" qatlamini (bosilsa foydalanuvchini
+// youtube.com'ga olib ketadi) saytning o'z qatlami bilan to'sib qo'yish.
+let youTubeApiPromise = null;
+function loadYouTubeIframeApi() {
+	if (typeof window === 'undefined') return Promise.resolve(null);
+	if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
+	if (youTubeApiPromise) return youTubeApiPromise;
+
+	youTubeApiPromise = new Promise(resolve => {
+		const prevReady = window.onYouTubeIframeAPIReady;
+		window.onYouTubeIframeAPIReady = () => {
+			if (typeof prevReady === 'function') prevReady();
+			resolve(window.YT);
+		};
+		if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+			const tag = document.createElement('script');
+			tag.src = 'https://www.youtube.com/iframe_api';
+			document.head.appendChild(tag);
+		}
+	});
+
+	return youTubeApiPromise;
+}
+
 /* ---------------------------------------------------------
    AI: film tavsifini avtomatik yozib berish
 
@@ -355,7 +383,18 @@ async function callGemini({ systemPrompt, contents, apiKey, maxOutputTokens = 30
 				body: JSON.stringify({
 					systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
 					contents,
-					generationConfig: { maxOutputTokens, temperature: 0.8 },
+					generationConfig: {
+						maxOutputTokens,
+						temperature: 0.8,
+						// Gemini 2.5/3.5 Flash modellari javob yozishdan oldin "ichki
+						// fikrlash" (thinking) qiladi, va bu fikrlash tokenlari ham
+						// maxOutputTokens limitidan hisoblanadi. Shu sabab javoblar
+						// past limitlarda (masalan 300-400) yarim so'zda kesilib
+						// qolardi — fikrlash butun byudjetni yeb qo'yardi. Buni
+						// nolga tushirib, butun byudjetni ko'rinadigan javobga
+						// ajratamiz.
+						thinkingConfig: { thinkingBudget: 0 },
+					},
 				}),
 			});
 		} catch (networkErr) {
@@ -375,6 +414,14 @@ async function callGemini({ systemPrompt, contents, apiKey, maxOutputTokens = 30
 			}
 
 			if (response.status === 400 || response.status === 401 || response.status === 403) {
+				// Ba'zi eski/lite modellar thinkingConfig maydonini tushunmasligi
+				// mumkin va shu sababli 400 xato qaytarishi mumkin — bunday holda
+				// darhol to'xtamasdan, ro'yxatdagi keyingi modelni sinab ko'ramiz.
+				const isThinkingConfigIssue = /thinking/i.test(detail);
+				if (isThinkingConfigIssue) {
+					lastError = new Error(detail || "Model thinkingConfig'ni qo'llab-quvvatlamaydi");
+					continue;
+				}
 				throw new Error(detail ? `API kalit muammosi: ${detail}` : "API kalit noto'g'ri yoki yaroqsiz");
 			}
 			if (response.status === 404) {
@@ -419,7 +466,7 @@ Qoidalar:
 	return callGemini({
 		contents: [{ role: 'user', parts: [{ text: prompt }] }],
 		apiKey,
-		maxOutputTokens: 200,
+		maxOutputTokens: 300,
 	});
 }
 
@@ -449,7 +496,7 @@ Faqat quyidagi JSON formatida javob qaytar, boshqa hech qanday matn, izoh yoki m
 	const raw = await callGemini({
 		contents: [{ role: 'user', parts: [{ text: prompt }] }],
 		apiKey,
-		maxOutputTokens: 300,
+		maxOutputTokens: 400,
 	});
 
 	// AI ba'zan JSON'ni ```json ... ``` bilan o'rab yuborishi mumkin — tozalaymiz
@@ -503,7 +550,7 @@ ${catalogText}
 			parts: [{ text: m.content }],
 		})),
 		apiKey,
-		maxOutputTokens: 400,
+		maxOutputTokens: 600,
 	});
 
 	return response;
@@ -797,7 +844,7 @@ function MovieCard({ movie, isFav, onToggleFav, onOpen, index }) {
 				<span className='kb-ticket-genre-tag'>{movie.genre}</span>
 				{movie.rating >= 8.6 && <span className='kb-ticket-stamp'>TOP</span>}
 				{movie.youtubeUrl && (
-					<span className='kb-ticket-play'>
+					<span className='kb-ticket-play' style={{ background: theme.accent, color: theme.a }}>
 						<Play size={16} fill='currentColor' />
 					</span>
 				)}
@@ -849,11 +896,19 @@ function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
 	const theme = getGenreTheme(movie.genre);
 	const [imgError, setImgError] = useState(false);
 	const [playing, setPlaying] = useState(false);
+	// Video pauza/tugagan holatda bo'lganda true — shu payt YouTube'ning
+	// sarlavha/kanal/"boshqa videolar" qatlami ko'rinadi va bosilsa
+	// foydalanuvchini youtube.com'ga olib ketadi. Shuni to'sish uchun
+	// o'zimizning qatlamimizni chiqaramiz.
+	const [showVideoCover, setShowVideoCover] = useState(true);
 	const youtubeId = getYouTubeId(movie.youtubeUrl);
 	// Agar mahsulotda o'z posteri bo'lmasa, YouTube'ning shu video uchun
 	// avtomatik beradigan asl thumbnail'idan foydalanamiz.
 	const posterSrc = movie.poster || getYouTubeThumbnail(youtubeId);
 	const hasPoster = Boolean(posterSrc) && !imgError;
+
+	const iframeRef = useRef(null);
+	const playerRef = useRef(null);
 
 	useEffect(() => {
 		function onKey(e) {
@@ -863,11 +918,45 @@ function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
 		return () => document.removeEventListener('keydown', onKey);
 	}, [onClose]);
 
+	useEffect(() => {
+		if (!playing || !youtubeId) return undefined;
+		let cancelled = false;
+		setShowVideoCover(true);
+
+		loadYouTubeIframeApi().then(YT => {
+			if (cancelled || !YT || !iframeRef.current) return;
+			playerRef.current = new YT.Player(iframeRef.current, {
+				events: {
+					onStateChange: event => {
+						// YT.PlayerState.PLAYING === 1 — faqat shu holatda
+						// qatlamni olib tashlaymiz, qolgan barcha holatda
+						// (pauza, tugagan, video yuklanmoqda) qatlam turadi.
+						setShowVideoCover(event.data !== 1);
+					},
+				},
+			});
+		});
+
+		return () => {
+			cancelled = true;
+			if (playerRef.current?.destroy) {
+				playerRef.current.destroy();
+			}
+			playerRef.current = null;
+		};
+	}, [playing, youtubeId]);
+
 	function handleWatchClick() {
 		if (youtubeId) {
 			setPlaying(true);
 		} else {
 			onWatch(movie);
+		}
+	}
+
+	function handleResumeClick() {
+		if (playerRef.current?.playVideo) {
+			playerRef.current.playVideo();
 		}
 	}
 
@@ -883,13 +972,46 @@ function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
 				</button>
 				<div className='kb-modal-hero' style={{ '--gA': theme.a, '--gB': theme.b, '--gAccent': theme.accent }}>
 					{playing && youtubeId ? (
-						<iframe
-							className='kb-modal-video'
-							src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3&fs=1&playsinline=1`}
-							title={movie.title}
-							allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
-							allowFullScreen
-						/>
+						<div className='kb-modal-video' style={{ position: 'relative', width: '100%', height: '100%' }}>
+							<iframe
+								ref={iframeRef}
+								style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+								src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1&fs=1&color=white&showinfo=0&enablejsapi=1&origin=${encodeURIComponent(
+									typeof window !== 'undefined' ? window.location.origin : '',
+								)}`}
+								title={movie.title}
+								allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
+								allowFullScreen
+							/>
+							{showVideoCover && (
+								<button
+									type='button'
+									onClick={handleResumeClick}
+									aria-label={`${movie.title} treylerini davom ettirish`}
+									style={{
+										position: 'absolute',
+										inset: 0,
+										width: '100%',
+										height: '100%',
+										display: 'flex',
+										alignItems: 'center',
+										justifyContent: 'center',
+										background: `${theme.a}D9`,
+										border: 'none',
+										cursor: 'pointer',
+									}}>
+									<span
+										className='kb-modal-play-overlay'
+										style={{
+											background: theme.accent,
+											color: theme.a,
+											boxShadow: `0 0 0 6px ${theme.a}66`,
+										}}>
+										<Play size={26} fill='currentColor' />
+									</span>
+								</button>
+							)}
+						</div>
 					) : hasPoster ? (
 						<button
 							type='button'
@@ -903,7 +1025,13 @@ function MovieModal({ movie, isFav, onToggleFav, onClose, onWatch }) {
 								onError={() => setImgError(true)}
 							/>
 							{youtubeId && (
-								<span className='kb-modal-play-overlay'>
+								<span
+									className='kb-modal-play-overlay'
+									style={{
+										background: theme.accent,
+										color: theme.a,
+										boxShadow: `0 0 0 6px ${theme.a}66`,
+									}}>
 									<Play size={26} fill='currentColor' />
 								</span>
 							)}
